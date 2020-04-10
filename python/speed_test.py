@@ -18,14 +18,20 @@ from datetime import datetime;
 # Global declarations.
 # ==============================================================================
 
+# Location of this python file.
+REPO_BASE_PATH = "/home/pi/Workspaces/github/speed_test/python/";
+
 # Path to store speed test results.
-LOGS_PATH = "log_files";
+LOGS_PATH = REPO_BASE_PATH + "log_files";
 
 # Path to store speed test result that have been saved to the cloud database.
-TRASH_PATH = "pushed_logs";
+TRASH_PATH = REPO_BASE_PATH + "pushed_logs";
+
+# Path to save files with errors.
+ERROR_PATH = REPO_BASE_PATH + "error_files"
 
 # The command to perform the speed test.
-SPEED_TEST_COMMAND = "speedtest --output-header -f json-pretty > " + LOGS_PATH + "/$(date +'%Y-%m-%d_%H:%M:%S').json";
+SPEED_TEST_COMMAND = "speedtest -f json-pretty > " + LOGS_PATH + "/$(date +'%Y-%m-%d_%H:%M:%S').json";
 
 # Database hostname.
 DB_HOSTNAME = "my-own-domain.com";
@@ -37,7 +43,7 @@ DB_NAME = "my-database-name";
 DB_USERNAME = "my-database-user";
 
 # Database user's pass.
-DB_USER_PASSWORD = "password-of-my-user";
+DB_USER_PASSWORD = "my-user's-password";
 
 
 # ==============================================================================
@@ -51,6 +57,7 @@ class SpeedTest():
 
         os.system( "mkdir -p " + LOGS_PATH  );
         os.system( "mkdir -p " + TRASH_PATH );
+        os.system( "mkdir -p " + ERROR_PATH );
 
     # --------------------------------------------------------------------------
 
@@ -73,18 +80,30 @@ class SpeedTest():
         for root, dirs, files in os.walk( LOGS_PATH ):
             for file in files:
                 print( "Processing file: \"" + file + "\"...");
-                with open( LOGS_PATH + "/"  + file ) as json_file:
-                    dataInserted = self.insertIntoDatabase( json.load( json_file  ) );
 
-                if( dataInserted == 1 ):
+                # Validate if we have an empty file ( size == 0 ).
+                if( 0 == os.stat( LOGS_PATH + "/" + file ).st_size ):
+                    dataInserted = 2;
+                else:
+                    with open( LOGS_PATH + "/"  + file ) as json_file:
+                        dataInserted = self.insertIntoDatabase( json.load( json_file  ) );
+
+                # Data successfully inserted into database.
+                if( 1 == dataInserted ):
                     os.system( "mv " + LOGS_PATH + "/" + file + " " + TRASH_PATH + "/" + file );
                     dataInserted = 0;
+
+                # JSON file with "error" key or empty file ( size == 0 ).
+                if( 2 == dataInserted ):
+                    os.system( "mv " + LOGS_PATH + "/" + file + " " + ERROR_PATH + "/" + file );
 
     # --------------------------------------------------------------------------
 
 
     # Inserts a record into the Database. --------------------------------------
     def insertIntoDatabase( self, data ):
+        if( 'error' in data ):
+            return 2;
 
         print( "Saving to database ..." );
 
@@ -124,6 +143,10 @@ class SpeedTest():
             "%(interface_externalIp)s, %(server_id)s, %(server_name)s, "            + \
             "%(server_location)s, %(server_country)s, %(server_host)s, "            + \
             "%(server_port)s, %(server_ip)s, %(result_id)s, %(result_url)s )";
+
+        # Validation for fields that commonly have errors.
+        if( not 'packetLoss' in data ):
+            data['packetLoss'] = 0;
 
         STR_VALUES = { 'type'                 : data['type'],
                        'timestamp'            : datetime.strptime( data['timestamp'], '%Y-%m-%dT%H:%M:%SZ' ),
@@ -172,7 +195,7 @@ class SpeedTest():
 # Create new instance to perform the speed test.
 speedTest = SpeedTest();
 
-# Run teh speed test.
+# Run the speed test.
 speedTest.run();
 
 # Push this and any pending to push speed test results.

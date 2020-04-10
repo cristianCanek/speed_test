@@ -32,6 +32,20 @@ Create a new MySQL instance in order to save the speed test generated data. [Her
 
 2. Copy [this python script](python/speed_test.py) to your device. Do not forget to change your access data before sending it to your device.
 
+  ```python
+  # Database hostname.
+  DB_HOSTNAME = "my-own-domain.com";
+
+  # Database's name.
+  DB_NAME = "my-database-name";
+
+  # Database user.
+  DB_USERNAME = "my-database-user";
+
+  # Database user's pass.
+  DB_USER_PASSWORD = "my-user's-password";
+  ```
+
 3. Insert a new record to crontab to auto-run your script every time you want.
 
   ```bash
@@ -39,7 +53,7 @@ Create a new MySQL instance in order to save the speed test generated data. [Her
   $ crontab -e
 
   # Add a scheduled task (this one runs every 15 minutes).
-  */15 * * * * python /home/pi/Documents/speed_test/speed_test.py
+  */15 * * * * python /home/pi/Workspaces/github/speed_test/python/speed_test.py
   ```
 
 ### 3. Monitor the results using a web page.

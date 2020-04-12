@@ -58,4 +58,4 @@ Create a new MySQL instance in order to save the speed test generated data. [Her
 
 ### 3. Monitor the results using a web page.
 
- Open [this web page](web_page/index.html) in your browser to watch the results.
+Open [this web page](web_page/index.php) in your browser to watch the results.

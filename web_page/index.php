@@ -7,182 +7,242 @@
         <link rel="stylesheet" type="text/css" href="stylesheet.css">
         <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
         <script type="text/javascript">
-            google.charts.load('current', {'packages':['gauge']});
             google.charts.load( 'current', { packages: [ 'corechart', 'line' ] } );
-
-            google.charts.setOnLoadCallback( drawLinesChart_LastDownload );
-            google.charts.setOnLoadCallback( drawLinesChart_LastUpload );
-            google.charts.setOnLoadCallback( drawLinesChart_Today );
-            google.charts.setOnLoadCallback( drawLinesChart_Week );
+            
+            google.charts.setOnLoadCallback( drawLinesChart_Day   );
+            google.charts.setOnLoadCallback( drawLinesChart_Week  );
             google.charts.setOnLoadCallback( drawLinesChart_Month );
 
-            /* Draws the donwload graph for Last's view. */
-            function drawLinesChart_LastDownload() {
-                var data = google.visualization.arrayToDataTable( [
-                    [ 'Label', 'Value'  ],
-                    [ 'Download', <?php echo $lst_download; ?> ]
-                ]);
+            /* Draws the graph for Day's view. */
+            function drawLinesChart_Day() {
+                // Chart object.
+                var chart = new google.visualization.LineChart( document.getElementById( 'chart_div_day' ) );
 
-                var options = {
-                    min:          0,
-                    max:         50,
-                    width:      400,
-                    height:     120,
-                    redFrom:      0,
-                    redTo:       10,
-                    yellowFrom:  10,
-                    yellowTo:    15,
-                    greenFrom:   15,
-                    greenTo:     50,
-                    minorTicks:   5,
-                    majorTicks: ['0', '10', '20', '30', '40', '50']
-                };
-
-                var chart = new google.visualization.Gauge( document.getElementById( 'chart_div_last_download' ) );
-
-                chart.draw(data, options);
-            }
-
-            /* Draws the upload graph for Last's view. */
-            function drawLinesChart_LastUpload() {
-                var data = google.visualization.arrayToDataTable( [
-                    [ 'Label', 'Value'  ],
-                    [ 'Upload', <?php echo $lst_upload; ?> ]
-                ]);
-
-                var options = {
-                    min:          0,
-                    max:         50,
-                    width:      400,
-                    height:     120,
-                    redFrom:      0,
-                    redTo:        1,
-                    yellowFrom:   1,
-                    yellowTo:     2,
-                    greenFrom:    2,
-                    greenTo:     50,
-                    minorTicks:   5,
-                    majorTicks: ['0', '10', '20', '30', '40', '50']
-                };
-
-                var chart = new google.visualization.Gauge( document.getElementById( 'chart_div_last_upload' ) );
-
-                chart.draw(data, options);
-            }
-
-            /* Draws the graph for Today's view. */
-            function drawLinesChart_Today() {
+                // Data to be used for the chart.
                 var data = new google.visualization.DataTable();
 
-                data.addColumn( 'datetime', 'Date'     );
-                data.addColumn( 'number',   'Download' );
-                data.addColumn( 'number',   'Upload'   );
+                // Format date values for x-axis.
+                var formatter_shortdate = new google.visualization.DateFormat( { pattern: "dd/MM/yyyy KK:mm aa" } );
 
-                data.addRows( <?php echo $string_data_today; ?> );
-
+                // Chart settings.
                 var options = {
+                    title: 'SPEEDTEST Results (last 24 hrs)',
+                    titleTextStyle: { color: '#FFFFFF', fontSize: 18 },
+                    chartArea: { backgroundColor: '#1A1B2E', left: 70, width: 580 },
+                    backgroundColor: '#141526',
+                    width:  720,
+                    height: 360,
+                    legend: { textStyle: { color: '#9193A8', fontSize: 11 }, position: 'top' },
+                    focusTarget: 'category',
+                    tooltip: { textStyle: { fontSize: 11 } },
+                    series: {
+                        0: { targetAxisIndex: 0, color: '6AFFF3' },
+                        1: { targetAxisIndex: 0, color: 'BF71FF' },
+                        2: { targetAxisIndex: 1, color: 'FFF38E', lineDashStyle: [2, 2], lineWidth: 1 },
+                        3: { targetAxisIndex: 1, color: '6AFFF3', lineDashStyle: [2, 2], lineWidth: 1 },
+                        4: { targetAxisIndex: 1, color: 'BF71FF', lineDashStyle: [2, 2], lineWidth: 1 }
+                    },
                     hAxis: {
                         title: 'Datetime',
-                        format: 'd/M/yy'
+                        format: 'dd/MM HH:mm',
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859', count: 12 }
                     },
                     vAxis: {
-                        title: 'Conexion speed (Mbps)'
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859' }
                     },
-                    series: {
-                        1: { curveType: 'none' }
+                    vAxes: {
+                        0: { ticks: [ 0, 100, 200, 300 ], title: 'Connexion speed (Mbps)' },
+                        1: { ticks: [ 0,  50, 100, 150 ], title: 'Latency (ms)'           }
                     }
                 };
 
-                var chart = new google.visualization.LineChart(document.getElementById('chart_div_today'));
-                chart.draw(data, options);
+                data.addColumn( 'datetime', 'Date'             );
+                data.addColumn( 'number',   'Download'         );
+                data.addColumn( 'number',   'Upload'           );
+                data.addColumn( 'number',   'Ping'             );
+                data.addColumn( 'number',   'Download latency' );
+                data.addColumn( 'number',   'Upload latency'   );
+
+                data.addRows( <?php echo $string_data_day; ?> );
+
+                formatter_shortdate.format( data, 0 );
+                
+                chart.draw( data, options );
             }
 
             /* Draws the graph for Week's view. */
             function drawLinesChart_Week() {
+                // Chart object.
+                var chart = new google.visualization.LineChart( document.getElementById( 'chart_div_week' ) );
+
+                // Data to be used for the chart.
                 var data = new google.visualization.DataTable();
 
-                data.addColumn( 'datetime', 'Date'     );
-                data.addColumn( 'number',   'Download' );
-                data.addColumn( 'number',   'Upload'   );
+                // Format date values for x-axis.
+                var formatter_shortdate = new google.visualization.DateFormat( { pattern: "dd/MM/yyyy KK:mm aa" } );
 
-                data.addRows( <?php echo $string_data_week; ?> );
-
+                // Chart settings.
                 var options = {
+                    title: 'SPEEDTEST Results (last week)',
+                    titleTextStyle: { color: '#FFFFFF', fontSize: 18 },
+                    chartArea: { backgroundColor: '#1A1B2E', left: 70, width: 580 },
+                    backgroundColor: '#141526',
+                    width:  720,
+                    height: 360,
+                    legend: { textStyle: { color: '#9193A8', fontSize: 11 }, position: 'top' },
+                    focusTarget: 'category',
+                    tooltip: { textStyle: { fontSize: 11 } },
+                    series: {
+                        0: { targetAxisIndex: 0, color: '6AFFF3' },
+                        1: { targetAxisIndex: 0, color: 'BF71FF' },
+                        2: { targetAxisIndex: 1, color: 'FFF38E', lineDashStyle: [2, 2], lineWidth: 1 },
+                        3: { targetAxisIndex: 1, color: '6AFFF3', lineDashStyle: [2, 2], lineWidth: 1 },
+                        4: { targetAxisIndex: 1, color: 'BF71FF', lineDashStyle: [2, 2], lineWidth: 1 }
+                    },
                     hAxis: {
                         title: 'Datetime',
-                        format: 'd/M/yy'
+                        format: 'dd/MM HH:mm',
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859', count: 12 }
                     },
                     vAxis: {
-                        title: 'Conexion speed (Mbps)'
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859' }
                     },
-                    series: {
-                        1: { curveType: 'none' }
+                    vAxes: {
+                        0: { ticks: [ 0, 100, 200, 300 ], title: 'Connexion speed (Mbps)' },
+                        1: { ticks: [ 0,  50, 100, 150 ], title: 'Latency (ms)'           }
                     }
                 };
 
-                var chart = new google.visualization.LineChart(document.getElementById('chart_div_week'));
-                chart.draw(data, options);
+                data.addColumn( 'datetime', 'Date'             );
+                data.addColumn( 'number',   'Download'         );
+                data.addColumn( 'number',   'Upload'           );
+                data.addColumn( 'number',   'Ping'             );
+                data.addColumn( 'number',   'Download latency' );
+                data.addColumn( 'number',   'Upload latency'   );
+
+                data.addRows( <?php echo $string_data_week; ?> );
+                
+                formatter_shortdate.format( data, 0 );
+
+                chart.draw( data, options );
             }
 
             /* Draws the graph for Month's view. */
             function drawLinesChart_Month() {
+                // Chart object.
+                var chart = new google.visualization.LineChart( document.getElementById( 'chart_div_month' ) );
+
+                // Data to be used for the chart.
                 var data = new google.visualization.DataTable();
 
-                data.addColumn( 'datetime', 'Date'     );
-                data.addColumn( 'number',   'Download' );
-                data.addColumn( 'number',   'Upload'   );
+                // Format date values for x-axis.
+                var formatter_shortdate = new google.visualization.DateFormat( { pattern: "dd/MM/yyyy KK:mm aa" } );
 
-                data.addRows( <?php echo $string_data_month; ?> );
-
+                // Chart settings.
                 var options = {
+                    title: 'SPEEDTEST Results (last month)',
+                    titleTextStyle: { color: '#FFFFFF', fontSize: 18 },
+                    chartArea: { backgroundColor: '#1A1B2E', left: 70, width: 580 },
+                    backgroundColor: '#141526',
+                    width:  720,
+                    height: 360,
+                    legend: { textStyle: { color: '#9193A8', fontSize: 11 }, position: 'top' },
+                    focusTarget: 'category',
+                    tooltip: { textStyle: { fontSize: 11 } },
+                    series: {
+                        0: { targetAxisIndex: 0, color: '6AFFF3' },
+                        1: { targetAxisIndex: 0, color: 'BF71FF' },
+                        2: { targetAxisIndex: 1, color: 'FFF38E', lineDashStyle: [2, 2], lineWidth: 1 },
+                        3: { targetAxisIndex: 1, color: '6AFFF3', lineDashStyle: [2, 2], lineWidth: 1 },
+                        4: { targetAxisIndex: 1, color: 'BF71FF', lineDashStyle: [2, 2], lineWidth: 1 }
+                    },
                     hAxis: {
                         title: 'Datetime',
-                        format: 'd/M/yy'
+                        format: 'dd/MM HH:mm',
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859', count: 12 }
                     },
                     vAxis: {
-                        title: 'Conexion speed (Mbps)'
+                        titleTextStyle: { color: '#9193A8', italic: false },
+                        textStyle: { color: '#9193A8', fontSize: 11 },
+                        gridlines: { color: '#464859' }
                     },
-                    series: {
-                        1: { curveType: 'none' }
+                    vAxes: {
+                        0: { ticks: [ 0, 100, 200, 300 ], title: 'Connexion speed (Mbps)' },
+                        1: { ticks: [ 0,  50, 100, 150 ], title: 'Latency (ms)'           }
                     }
                 };
 
-                var chart = new google.visualization.LineChart(document.getElementById('chart_div_month'));
-                chart.draw(data, options);
+                data.addColumn( 'datetime', 'Date'             );
+                data.addColumn( 'number',   'Download'         );
+                data.addColumn( 'number',   'Upload'           );
+                data.addColumn( 'number',   'Ping'             );
+                data.addColumn( 'number',   'Download latency' );
+                data.addColumn( 'number',   'Upload latency'   );
+
+                data.addRows( <?php echo $string_data_month; ?> );
+                
+                formatter_shortdate.format( data, 0 );
+                
+                chart.draw( data, options );
             }
         </script>
     </head>
 
     <body>
-
-        <div class="tab">
+        <!-- <div class="tab">
             <button class="tablinks" onclick="showTabView(event, 'Last')" id="defaultTab"> Last </button>
-            <button class="tablinks" onclick="showTabView(event, 'Today')"> Today </button>
+            <button class="tablinks" onclick="showTabView(event, 'Day')"> Day </button>
             <button class="tablinks" onclick="showTabView(event, 'Week')"> Week </button>
             <button class="tablinks" onclick="showTabView(event, 'Month')"> Month </button>
-        </div>
+        </div> -->
 
         <div id="Last" class="tabcontent">
-          <a> <?php echo $lst_timestamp; ?> </a> <br>
-          <div id="chart_div_last_download"></div>
-          <div id="chart_div_last_upload"></div>
-          <br> <a> PING <?php echo $lst_ping; ?> ms</a> <br>
-          <br> <a href="<?php echo $lst_result_url; ?>" target="_blank"> Ver en speedtest.net </a>
+            <table border=0 width=720 height=360 bgcolor="#141526">
+                <tr align="center" valign="bottom"> <td colspan=2> <a style="color:#1BB3EF; font-size:16px"> <?php echo $last_timestamp; ?> </a> </td> </tr>
+                <tr align="center" valign="bottom">
+                    <td> <a style="color:#FFFFFF; font-size:18px"> DOWNLOAD </a> <a style="color:#9193A8; font-size:18px"> Mbps </a> </td>
+                    <td> <a style="color:#FFFFFF; font-size:18px"> UPLOAD   </a> <a style="color:#9193A8; font-size:18px"> Mbps </a> </td>
+                </tr>
+                <tr valign="top" align="center">
+                    <td> <a style="color:#FFFFFF; font-size:54px"> <?php echo $last_download_bandwith; ?> </a> </td>
+                    <td> <a style="color:#FFFFFF; font-size:54px"> <?php echo $last_upload_bandwith; ?>   </a> </td>
+                </tr>
+                <tr valign="top">
+                    <td colspan=2 align="center" style="color:#FFFFFF; font-size:16px">
+                        <a> Ping:             </a> <a style="color:#FFF38E"> <?php echo $last_ping_latency; ?>         </a> <a style="color:#9193A8"> ms </a> <br>
+                        <a> Download latency: </a> <a style="color:#6AFFF3"> <?php echo $last_download_latency_iqm; ?> </a> <a style="color:#9193A8"> ms </a> <br>
+                        <a> Upload latency:   </a> <a style="color:#BF71FF"> <?php echo $last_upload_latency_iqm; ?>   </a> <a style="color:#9193A8"> ms </a>
+                    </td>
+                </tr>
+                <tr align="center">
+                    <td colspan=2> <a href="<?php echo $last_result_url; ?>" target="_blank" style="color:#1BB3EF; font-size:16px"> >> Click here to see this result in speedtest.net  <<</a> </td>
+                </tr>
+            </table>
         </div>
-
-        <div id="Today" class="tabcontent">
-            <div id="chart_div_today"></div>
+        <br>
+        <div id="Day" class="tabcontent">
+            <div id="chart_div_day"></div>
         </div>
-
+        <br>
         <div id="Week" class="tabcontent">
             <div id="chart_div_week"></div>
         </div>
-
+        <br>
         <div id="Month" class="tabcontent">
             <div id="chart_div_month"></div>
         </div>
 
-        <script>
+        <!-- <script type="text/javascript">
             function showTabView( evt, viewName ) {
                 var i, tabcontent, tablinks;
                 tabcontent = document.getElementsByClassName( "tabcontent" );
@@ -203,6 +263,6 @@
 
             /* Show the "defaultTab" element. */
             document.getElementById( "defaultTab" ).click();
-        </script>
+        </script> -->
     </body>
 </html>

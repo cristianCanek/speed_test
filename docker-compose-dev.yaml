@@ -1,0 +1,18 @@
+name: speed_test_app
+services:
+  webserver:
+    build:
+      context: .
+      dockerfile: dockerfiles/nginx.dockerfile
+    ports:
+      - "8000:80"
+    depends_on:
+      - phpserver
+  phpserver:
+    build:
+      context: .
+      dockerfile: dockerfiles/php.dockerfile
+    volumes:
+      - C:/workspaces/speed_test/database:/app/database
+      # Comment this line for production, keep it as it is for development
+      - C:/workspaces/speed_test/web_page:/app/public

@@ -1,0 +1,12 @@
+name: speed_test_app
+services:
+  webserver:
+    image: cristiancampuzano/speedtest-webserver:latest
+    ports:
+      - "8000:80"
+    depends_on:
+      - phpserver
+  phpserver:
+    image: cristiancampuzano/speedtest-phpserver:latest
+    volumes:
+      - /home/cristian/Documents/speed_test/database:/app/database

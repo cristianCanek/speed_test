@@ -1,6 +1,119 @@
 # Speed test.
 
-(multi-container) Dockerized application for monitoring internet speed connection at home continuously.
+Self-hosted multi-container Docker application for continuously monitoring Internet connection performance using Ookla Speedtest CLI, SQLite, and a local web dashboard.
+
+<div style="display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px;">
+  <img src="./docs/images/dashboard_01.png"/>
+  <img src="./docs/images/dashboard_02.png"/>
+  <img src="./docs/images/dashboard_03.png"/>
+  <img src="./docs/images/dashboard_04.png"/>
+</div>
+
+
+## Architecture
+
+Version 1.x uses a multi-container architecture composed of separate components for data collection and web visualization.
+
+```text
+                         Host system
+                             │
+                             │ crontab (every 15 minutes)
+                             ▼
+                ┌─────────────────────────┐
+                │ Speedtest database      │
+                │ container               │
+                │                         │
+                │ Python                  │
+                │ Ookla Speedtest CLI     │
+                └────────────┬────────────┘
+                             │
+                             │ writes results
+                             ▼
+                   ┌───────────────────┐
+                   │ SQLite database   │
+                   │ speedtest.sqlite3 │
+                   └─────────┬─────────┘
+                             │
+                       bind-mounted
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+     ┌─────────────────┐          ┌─────────────────┐
+     │ PHP container   │◄─────────│ Nginx container │
+     │                 │          │                 │
+     │ Reads SQLite    │          │ Serves web UI   │
+     │ Generates data  │          │ Port 8000       │
+     └─────────────────┘          └────────┬────────┘
+                                          │
+                                          ▼
+                                       Browser
+                                          │
+                                          ▼
+                                  Google Charts
+```
+
+### Components
+
+**Speedtest collector**
+
+A Python-based Docker container executes the Ookla Speedtest CLI, parses its JSON output, and stores the resulting measurements in a SQLite database.
+
+The container is designed to run as an ephemeral container. In the default setup, the host system invokes it every 15 minutes using `crontab`.
+
+**SQLite database**
+
+Speed test results are stored persistently in a SQLite database located outside the container through a bind mount. This allows the collected historical data to survive container recreation and updates.
+
+**PHP backend**
+
+The PHP container reads historical measurements from the SQLite database and prepares the data used by the web interface.
+
+**Nginx web server**
+
+Nginx serves the web application and forwards PHP requests to the PHP container. By default, the dashboard is available on port `8000`.
+
+**Web dashboard**
+
+The browser displays the collected results using Google Charts. Version 1.x therefore requires Internet access to load the Google Charts library even though the application itself is hosted locally.
+
+### Data flow
+
+```text
+Ookla Speedtest CLI
+        │
+        ▼
+     Python
+        │
+        ▼
+     SQLite
+        │
+        ▼
+       PHP
+        │
+        ▼
+      Nginx
+        │
+        ▼
+Web browser / Google Charts
+```
+
+### Version 1.x limitations
+
+Version 1.x is fully functional, but its original architecture has several limitations that motivated the Version 2 refactor:
+
+* Multiple containers are required for a relatively small application.
+* Speed tests are scheduled by the host system using `crontab`.
+* Initial database setup requires manual steps.
+* Configuration such as the execution interval is not centralized.
+* The web frontend depends on Google Charts and therefore requires Internet access to load the charting library.
+* PHP directly prepares data for JavaScript visualization, tightly coupling data access and presentation.
+* There is no public REST API for external integrations.
+* Failed speed tests are not represented as first-class monitoring events.
+* The dashboard has limited responsive behavior.
+* Installation requires several manual configuration steps and host-specific paths.
+
+Version 2 is intended to preserve the core functionality of Version 1 while simplifying deployment, improving portability, removing external frontend dependencies, and exposing a cleaner interface for future integrations.
 
 
 ## Getting started.
@@ -13,7 +126,7 @@
 
 ### 2. Setting up the environment.
 
-#### 1. Extract the executable "speedtest" file from the compressed API release file for the speedtest tool located at the apis folder.
+#### 1. Extract the executable "speedtest" file from the compressed CLI release file for the speedtest tool located at the apis folder.
 
 ```
 SPEED_TEST
@@ -27,28 +140,28 @@ SPEED_TEST
 
 ```bash
 # Create a "speedtest only" Docker container.
-docker build -f ./Dockerfiles/speedtestonly.dockerfile .
+docker build -f ./dockerfiles/speedtestonly.dockerfile .
 
 # Get the speedtest version (replace the image_id with the one you got from the docker build command).
 docker run --rm 28b04b47f067 --version
 
-# Get help from the speedtest api (replace the image_id with the one you got from the docker build command).
+# Get help from the speedtest CLI (replace the image_id with the one you got from the docker build command).
 docker run --rm 28b04b47f067 --help
 
 # Run the speedtest (replace the image_id with the one you got from the docker build command).
 docker run --rm 28b04b47f067 --format=json-pretty
 ```
 
-Alternatively you can download the pre-built image from Dockerhub by doing:
+Alternatively you can download the pre-built image from Docker Hub by doing:
 
 ```bash
-# Pull the image from Dockerhub.
+# Pull the image from Docker Hub.
 docker pull cristiancampuzano/speedtestonly:latest
 
 # Get the speedtest version.
 docker run --rm cristiancampuzano/speedtestonly:latest --version
 
-# Get help from the speedtest api.
+# Get help from the speedtest CLI.
 docker run --rm cristiancampuzano/speedtestonly:latest --help
 
 # Run the speedtest.
@@ -60,16 +173,16 @@ docker run --rm cristiancampuzano/speedtestonly:latest --format=json-pretty
 
 ```bash
 # Create the database Docker container.
-docker build -f ./Dockerfiles/python.dockerfile .
+docker build -f ./dockerfiles/python.dockerfile .
 
 # Run the database Docker container (replace the image_id with the one you got from the docker build command and the database path accordingly to what you have locally).
 docker run -v C:/workspaces/speed_test/database:/app/database --rm 858f0142ecbc
 ```
 
-Alternatively you can download the pre-built image from Dockerhub by doing:
+Alternatively you can download the pre-built image from Docker Hub by doing:
 
 ```bash
-# Pull the image from Dockerhub.
+# Pull the image from Docker Hub.
 docker pull cristiancampuzano/speedtest-database:latest
 
 # Run the database Docker container (replace the database path accordingly to what you have locally).
@@ -93,15 +206,15 @@ $ crontab -e
 IMPORTANT: If you want to modify the webpage src, do some changes (documented as comments) within the docker-compose-dev.yaml and dockerfiles/php.dockerfile files before running the next command. Also do not forget to update the addresses where the volumes are pointing to.
 
   ```bash
-  # Create the database Docker container.
+  # Up the web Docker containers.
   docker compose up -d
   ```
-Alternatively you can download adn run the pre-built images from Dockerhub by doing:
+Alternatively you can download and run the pre-built images from Docker Hub by doing:
 
 IMPORTANT: Do not forget to update the addresses where the database volume is pointing to within the docker-compose.yaml file, you can also change the exposed port there.
 
 ```bash
-# Pull the image from Dockerhub.
+# Pull the image from Docker Hub.
 docker compose -f docker-compose.yaml up -d
 ```
 
@@ -133,7 +246,7 @@ This project is not affiliated with, endorsed by, or sponsored by Ookla. Speedte
 
 ## Support
 
-If this plugin is useful to you and you'd like to support its development:
+If this project is useful to you and you'd like to support its development:
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20the%20project-555?logo=ko-fi&logoColor=white)](https://ko-fi.com/cristiancampuzano)
 [![PayPal](https://img.shields.io/badge/PayPal-Leave%20a%20tip-555?logo=paypal&logoColor=white)](https://paypal.me/cristianCanek)

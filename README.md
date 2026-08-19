@@ -2,12 +2,10 @@
 
 Self-hosted multi-container Docker application for continuously monitoring Internet connection performance using Ookla Speedtest CLI, SQLite, and a local web dashboard.
 
-<div style="display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px;">
-  <img src="./docs/images/dashboard_01.png"/>
-  <img src="./docs/images/dashboard_02.png"/>
-  <img src="./docs/images/dashboard_03.png"/>
-  <img src="./docs/images/dashboard_04.png"/>
-</div>
+| | |
+|---|---|
+| ![Latest result](docs/images/dashboard_01.png) | ![24-hour dashboard](docs/images/dashboard_02.png) |
+| ![Weekly dashboard](docs/images/dashboard_03.png) | ![Monthly dashboard](docs/images/dashboard_04.png) |
 
 
 ## Architecture
@@ -156,16 +154,16 @@ Alternatively you can download the pre-built image from Docker Hub by doing:
 
 ```bash
 # Pull the image from Docker Hub.
-docker pull cristiancampuzano/speedtestonly:latest
+docker pull cristiancampuzano/speedtestonly:1.0.0
 
 # Get the speedtest version.
-docker run --rm cristiancampuzano/speedtestonly:latest --version
+docker run --rm cristiancampuzano/speedtestonly:1.0.0 --version
 
 # Get help from the speedtest CLI.
-docker run --rm cristiancampuzano/speedtestonly:latest --help
+docker run --rm cristiancampuzano/speedtestonly:1.0.0 --help
 
 # Run the speedtest.
-docker run --rm cristiancampuzano/speedtestonly:latest --format=json-pretty
+docker run --rm cristiancampuzano/speedtestonly:1.0.0 --format=json-pretty
 ```
 
 
@@ -183,10 +181,10 @@ Alternatively you can download the pre-built image from Docker Hub by doing:
 
 ```bash
 # Pull the image from Docker Hub.
-docker pull cristiancampuzano/speedtest-database:latest
+docker pull cristiancampuzano/speedtest-database:1.0.0
 
 # Run the database Docker container (replace the database path accordingly to what you have locally).
-docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:latest
+docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:1.0.0
 ```
 
 
@@ -197,7 +195,7 @@ docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cr
 $ crontab -e
 
 # Add a scheduled task (this one will be executed every 15 minutes).
-*/15 * * * * docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:latest
+*/15 * * * * docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:1.0.0
 ```
 
 

@@ -1,5 +1,12 @@
 name: speed_test_app
 services:
+  collector:
+    build:
+      context: .
+      dockerfile: dockerfiles/python.dockerfile
+    volumes:
+      - C:/workspaces/speed_test/database:/app/database
+    restart: unless-stopped
   webserver:
     build:
       context: .

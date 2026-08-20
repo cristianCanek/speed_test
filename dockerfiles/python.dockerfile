@@ -2,10 +2,13 @@ FROM python:3.13.5-alpine3.22
 
 WORKDIR /app
 
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY ./apis/speedtest .
 
-RUN /app/speedtest --accept-license
+COPY ./app/collector/speedtest.py .
 
-COPY ./src/speedtest.py .
+STOPSIGNAL SIGINT
 
-CMD ["python", "/app/speedtest.py"]
+CMD ["python", "-u", "/app/speedtest.py"]

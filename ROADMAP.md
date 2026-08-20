@@ -66,7 +66,7 @@ Application containers: 3
 ```mermaid
 flowchart LR
     V1["v1.0.0<br/>3 containers<br/>Host cron<br/>Google Charts"]
-    A1["alpha.1<br/>3 containers<br/>APScheduler"]
+    A1["alpha.1 ✓<br/>3 containers<br/>APScheduler"]
     A2["alpha.2<br/>3 containers<br/>Persistent /config"]
     A3["alpha.3<br/>3 containers<br/>Chart.js"]
     A4["alpha.4<br/>3 containers<br/>Frontend refactor"]
@@ -83,21 +83,24 @@ flowchart LR
 
 ## v2.0.0-alpha.1 — Internal scheduler
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Remove the dependency on the host system's `crontab` and move test scheduling inside the collector.
 
 
-### Planned work
+### Completed work
 
-- Introduce APScheduler.
-- Keep the current 15-minute interval initially.
-- Keep the current SQLite schema.
-- Keep the existing collector behavior.
-- Run the collector as a persistent container instead of an ephemeral container.
-- Prevent overlapping Speedtest executions.
-- Define scheduler startup and shutdown behavior.
-- Preserve existing web functionality.
+- Introduced APScheduler.
+- Scheduled tests at HH:00, HH:15, HH:30 and HH:45.
+- Preserved the current SQLite schema.
+- Preserved the existing collector behavior.
+- Changed the collector from an ephemeral container to a persistent service.
+- Added protection against overlapping Speedtest executions.
+- Defined scheduler startup and shutdown behavior.
+- Preserved the existing PHP/Nginx web functionality.
+- Removed the host `crontab` dependency.
 
 
 ### Architecture milestone
@@ -105,7 +108,7 @@ Remove the dependency on the host system's `crontab` and move test scheduling in
 ```mermaid
 flowchart TB
     subgraph CollectorContainer["Collector container"]
-        Scheduler["APScheduler<br/>15-minute interval"]
+        Scheduler["APScheduler<br/>HH:00 · HH:15 · HH:30 · HH:45"]
         Collector["Python Collector"]
         Ookla["Ookla Speedtest CLI"]
 
@@ -126,7 +129,7 @@ flowchart TB
     Browser["Web Browser"]
     Google["Google Charts"]
 
-    CollectorContainer --> SQLite
+    Collector --> SQLite
     SQLite --> PHP
     PHP --> Nginx
     Nginx --> Browser
@@ -386,6 +389,9 @@ Database repository
 - Handle malformed output.
 - Record failed executions.
 - Add manual execution entry point.
+- Provide manual Speedtest execution from the running container through docker exec.
+- Support saved and non-persistent manual tests.
+- Support raw JSON output for manual tests.
 - Reuse the same collector from APScheduler and REST manual execution.
 - Prepare collector for integration with FastAPI lifecycle.
 

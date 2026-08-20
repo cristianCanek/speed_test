@@ -54,7 +54,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
 
 ## Features
 
-Current functionality inherited from Version 1 includes:
+Current functionality includes:
 
 - Automated Internet connection performance measurements using Ookla Speedtest CLI.
 - Download and upload speed monitoring.
@@ -62,19 +62,56 @@ Current functionality inherited from Version 1 includes:
 - Persistent historical storage using SQLite.
 - Local web dashboard.
 - Dockerized deployment.
+- Internal Speedtest scheduling using APScheduler.
+- Clock-aligned measurements at HH:00, HH:15, HH:30 and HH:45.
+- Persistent collector container.
+- Protection against overlapping Speedtest executions.
 
-> **ToDo:** Update this section as Version 2 functionality is implemented and validated.
+> **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-> **ToDo:** Pending section; Version 2 architecture will be documented as the refactor progresses.
+Version 2 is being implemented incrementally. The first development milestone, `v2.0.0-alpha.1`, replaces host-based `crontab` scheduling with APScheduler while preserving the existing three-container web architecture and SQLite schema.
 
-The target for Version 2 is a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
+Current `v2.0.0-alpha.1` architecture:
 
-Final architecture diagrams and component descriptions will be added once the corresponding functionality has been implemented.
+```mermaid
+flowchart TB
+    subgraph CollectorContainer["Collector container"]
+        Scheduler["APScheduler<br/>HH:00 · HH:15 · HH:30 · HH:45"]
+        Collector["Python Collector"]
+        Ookla["Ookla Speedtest CLI"]
 
-For the original Version 1 multi-container architecture, see the `v1.0.0` release documentation.
+        Scheduler --> Collector
+        Collector --> Ookla
+    end
+
+    SQLite[("SQLite")]
+
+    subgraph PHPContainer["PHP container"]
+        PHP["PHP Backend"]
+    end
+
+    subgraph NginxContainer["Nginx container"]
+        Nginx["Nginx"]
+    end
+
+    Browser["Web Browser"]
+    Google["Google Charts"]
+
+    Collector --> SQLite
+    SQLite --> PHP
+    PHP --> Nginx
+    Nginx --> Browser
+    Browser --> Google
+```
+
+The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
+
+Target Version 2 architecture:
+
+
 
 ```mermaid
 flowchart TB
@@ -105,6 +142,8 @@ flowchart TB
     Database --> SQLite
     Config --> FastAPI
 ```
+
+> **ToDo:** Update this section as each architectural milestone replaces additional Version 1 components.
 
 
 ## Supported Architectures
@@ -423,13 +462,26 @@ Version 1 uses:
 - Host-based `crontab` scheduling.
 
 
+### v2.0.0-alpha.1
+
+First functional Version 2 development milestone.
+
+Alpha 1 introduces:
+
+- APScheduler-based internal scheduling.
+- Clock-aligned Speedtests at HH:00, HH:15, HH:30 and HH:45.
+- A persistent collector container.
+- Cross-process protection against overlapping Speedtest executions.
+- Removal of the host `crontab` dependency.
+- Compatibility with the existing Version 1 SQLite schema and web dashboard.
+
 ### v2.0.0
 
 > **ToDo:** Currently under development.
 
 Version 2 will progressively replace the original architecture through the alpha milestones documented in `ROADMAP.md`.
 
-Detailed implementation history will be maintained in `CHANGELOG.md`.
+Detailed implementation history is maintained in `CHANGELOG.md`.
 
 
 ## Troubleshooting
@@ -460,7 +512,9 @@ See [LICENSE](LICENSE) for details.
 This project uses Ookla's Speedtest CLI to perform network speed measurements.
 Ookla Speedtest CLI is distributed and licensed separately by Ookla.
 
-> **ToDo:** Add other third-party runtime components and their licenses as Version 2 dependencies are finalized.
+Version 2 development also uses APScheduler for internal Speedtest scheduling.
+
+> **ToDo:** Add additional third-party runtime components and their licenses as Version 2 dependencies are finalized.
 
 
 ## Disclaimer

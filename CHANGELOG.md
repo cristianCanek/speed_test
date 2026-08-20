@@ -9,18 +9,54 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.1] - 2026-08-20](#v200-alpha1---2026-08-20)
 - [[v1.0.0] - 2026-08-19](#v100---2026-08-19)
 
 
 ## [Unreleased]
 
-Development toward Version 2 is currently in progress on the `v2-development` branch.
+No unreleased changes yet.
+
+
+## [v2.0.0-alpha.1] - 2026-08-20
+
+First functional development milestone toward Version 2.
+
+
+### Added
+
+- Added APScheduler as the internal Speedtest scheduler.
+- Added clock-aligned scheduling at HH:00, HH:15, HH:30 and HH:45.
+- Added a file-based execution lock to prevent overlapping Speedtest runs.
+- Added Version 2 roadmap and development documentation.
+
+
+### Changed
+
+- Changed the Speedtest collector from an ephemeral container to a persistent Docker service.
+- Moved the collector source into `app/collector/`.
+- Added the collector to the development Docker Compose stack.
+- Configured the collector to run as an unbuffered Python process for immediate Docker log output.
+- Made scheduler timezone handling explicit for the current development milestone.
+- Preserved the Version 1 SQLite schema and existing PHP/Nginx dashboard behavior.
+
+
+### Fixed
+
+- Corrected the SQLite INSERT placeholder generation so collected measurements continue to be stored correctly with the existing Version 1 schema.
+- Updated Ookla Speedtest CLI invocation so license/GDPR acceptance is handled when the collector runs.
+
+
+### Removed
+
+- Removed the requirement for host-based `crontab` scheduling.
 
 
 ### Documentation
 
 - Added the Version 2 development roadmap.
 - Added the initial Version 2 README structure.
+- Documented the `v2.0.0-alpha.1` architecture milestone.
 
 
 ## [v1.0.0] - 2026-08-19

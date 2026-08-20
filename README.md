@@ -1,6 +1,15 @@
-# Speed test.
+# speed_test
 
-Self-hosted multi-container Docker application for continuously monitoring Internet connection performance using Ookla Speedtest CLI, SQLite, and a local web dashboard.
+> [!IMPORTANT]
+> Version 2 is currently under development on the `v2-development` branch.
+>
+> The latest stable release is **v1.0.0**.
+>
+> For the stable Version 1 implementation and installation instructions, use the [`v1.0.0`](../../releases/tag/v1.0.0) release/tag.
+
+Self-hosted Docker application for continuously monitoring Internet connection performance using Ookla Speedtest CLI, SQLite, and a local web dashboard.
+
+> **ToDo:** The screenshots below currently represent the Version 1 dashboard and will be replaced as the Version 2 interface is developed.
 
 | | |
 |---|---|
@@ -8,218 +17,435 @@ Self-hosted multi-container Docker application for continuously monitoring Inter
 | ![Weekly dashboard](docs/images/dashboard_03.png) | ![Monthly dashboard](docs/images/dashboard_04.png) |
 
 
+## Table of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Supported Architectures](#supported-architectures)
+- [Quick Start](#quick-start)
+- [Application Setup](#application-setup)
+- [Usage](#usage)
+  - [Docker Compose](#docker-compose)
+  - [Docker CLI](#docker-cli)
+- [Configuration](#configuration)
+  - [Configuration File](#configuration-file)
+  - [Environment Variables](#environment-variables)
+  - [Changing Parameters of a Running Container](#changing-parameters-of-a-running-container)
+- [Deployment Considerations](#deployment-considerations)
+  - [Data Volumes](#data-volumes)
+  - [Ports](#ports)
+- [Accessing the GUI](#accessing-the-gui)
+- [REST API](#rest-api)
+- [Persistent Data](#persistent-data)
+- [Backup and Restore](#backup-and-restore)
+- [Migration from Version 1](#migration-from-version-1)
+- [Shell Access](#shell-access)
+- [Docker Image Versioning and Tags](#docker-image-versioning-and-tags)
+- [Docker Image Update](#docker-image-update)
+- [Building Locally](#building-locally)
+- [Development](#development)
+- [Versions](#versions)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Third-party Software](#third-party-software)
+- [Disclaimer](#disclaimer)
+- [Support](#support)
+
+
+## Features
+
+Current functionality inherited from Version 1 includes:
+
+- Automated Internet connection performance measurements using Ookla Speedtest CLI.
+- Download and upload speed monitoring.
+- Ping and loaded latency measurements.
+- Persistent historical storage using SQLite.
+- Local web dashboard.
+- Dockerized deployment.
+
+> **ToDo:** Update this section as Version 2 functionality is implemented and validated.
+
+
 ## Architecture
 
-Version 1.x uses a multi-container architecture composed of separate components for data collection and web visualization.
+> **ToDo:** Pending section; Version 2 architecture will be documented as the refactor progresses.
+
+The target for Version 2 is a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
+
+Final architecture diagrams and component descriptions will be added once the corresponding functionality has been implemented.
+
+For the original Version 1 multi-container architecture, see the `v1.0.0` release documentation.
+
+```mermaid
+flowchart TB
+    Browser["Web Browser"]
+
+    subgraph Container["speed_test container"]
+        FastAPI["FastAPI"]
+        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
+        API["REST API<br/>/api/v1"]
+        Scheduler["APScheduler"]
+        Collector["Speedtest Collector"]
+        Ookla["Ookla Speedtest CLI"]
+        Database["Database Layer"]
+
+        FastAPI --> Frontend
+        FastAPI --> API
+        FastAPI --> Scheduler
+        Scheduler --> Collector
+        Collector --> Ookla
+        Collector --> Database
+        API --> Database
+    end
+
+    SQLite[("SQLite<br/>/config/data/speedtest.sqlite3")]
+    Config["/config/config.yaml"]
+
+    Browser --> FastAPI
+    Database --> SQLite
+    Config --> FastAPI
+```
+
+
+## Supported Architectures
+
+> **ToDo:** Pending section; to be created/updated/removed as needed after validating the architectures supported by the final image and Ookla Speedtest CLI.
+
+
+## Quick Start
+
+> **ToDo:** Pending section; final Version 2 quick-start instructions will be added once the runtime architecture is available.
+
+The intended final installation experience is:
+
+```bash
+docker compose up -d
+```
+
+The application is expected to expose its web interface on port `8080`.
 
 ```text
-                         Host system
-                             │
-                             │ crontab (every 15 minutes)
-                             ▼
-                ┌─────────────────────────┐
-                │ Speedtest database      │
-                │ container               │
-                │                         │
-                │ Python                  │
-                │ Ookla Speedtest CLI     │
-                └────────────┬────────────┘
-                             │
-                             │ writes results
-                             ▼
-                   ┌───────────────────┐
-                   │ SQLite database   │
-                   │ speedtest.sqlite3 │
-                   └─────────┬─────────┘
-                             │
-                       bind-mounted
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-              ▼                             ▼
-     ┌─────────────────┐          ┌─────────────────┐
-     │ PHP container   │◄─────────│ Nginx container │
-     │                 │          │                 │
-     │ Reads SQLite    │          │ Serves web UI   │
-     │ Generates data  │          │ Port 8000       │
-     └─────────────────┘          └────────┬────────┘
-                                          │
-                                          ▼
-                                       Browser
-                                          │
-                                          ▼
-                                  Google Charts
+http://SERVER_IP:8080
 ```
 
-### Components
 
-**Speedtest collector**
+## Application Setup
 
-A Python-based Docker container executes the Ookla Speedtest CLI, parses its JSON output, and stores the resulting measurements in a SQLite database.
+> **ToDo:** Pending section; to be completed when automatic configuration and database initialization are implemented.
 
-The container is designed to run as an ephemeral container. In the default setup, the host system invokes it every 15 minutes using `crontab`.
+Version 2 is intended to initialize its required configuration and SQLite database automatically when they do not already exist.
 
-**SQLite database**
 
-Speed test results are stored persistently in a SQLite database located outside the container through a bind mount. This allows the collected historical data to survive container recreation and updates.
+## Usage
 
-**PHP backend**
+> **ToDo:** Pending section; to be completed when the Version 2 container interface is finalized.
 
-The PHP container reads historical measurements from the SQLite database and prepares the data used by the web interface.
 
-**Nginx web server**
+### Docker Compose
 
-Nginx serves the web application and forwards PHP requests to the PHP container. By default, the dashboard is available on port `8000`.
+> **ToDo:** Final Docker Compose configuration will be added here.
 
-**Web dashboard**
+```yaml
+# TODO: Version 2 Docker Compose configuration
+```
 
-The browser displays the collected results using Google Charts. Version 1.x therefore requires Internet access to load the Google Charts library even though the application itself is hosted locally.
 
-### Data flow
+### Docker CLI
+
+> **ToDo:** Final `docker run` example will be added here.
+
+```bash
+# TODO: Version 2 Docker CLI example
+```
+
+Docker Compose will be the recommended deployment method.
+
+
+## Configuration
+
+> **ToDo:** Pending section; configuration options will be documented as they are implemented.
+
+Version 2 is expected to use a persistent configuration directory:
 
 ```text
-Ookla Speedtest CLI
-        │
-        ▼
-     Python
-        │
-        ▼
-     SQLite
-        │
-        ▼
-       PHP
-        │
-        ▼
-      Nginx
-        │
-        ▼
-Web browser / Google Charts
-```
-
-### Version 1.x limitations
-
-Version 1.x is fully functional, but its original architecture has several limitations that motivated the Version 2 refactor:
-
-* Multiple containers are required for a relatively small application.
-* Speed tests are scheduled by the host system using `crontab`.
-* Initial database setup requires manual steps.
-* Configuration such as the execution interval is not centralized.
-* The web frontend depends on Google Charts and therefore requires Internet access to load the charting library.
-* PHP directly prepares data for JavaScript visualization, tightly coupling data access and presentation.
-* There is no public REST API for external integrations.
-* Failed speed tests are not represented as first-class monitoring events.
-* The dashboard has limited responsive behavior.
-* Installation requires several manual configuration steps and host-specific paths.
-
-Version 2 is intended to preserve the core functionality of Version 1 while simplifying deployment, improving portability, removing external frontend dependencies, and exposing a cleaner interface for future integrations.
-
-
-## Getting started.
-
-### 1. Pre-requisites.
-
-1. To have docker installed.
-2. To have this repository cloned.
-
-
-### 2. Setting up the environment.
-
-#### 1. Extract the executable "speedtest" file from the compressed CLI release file for the speedtest tool located at the apis folder.
-
-```
-SPEED_TEST
-|-- apis
-|   |-- ookla-speedtest-1.2.0-linux-x86_64.tgz
-|   |-- speedtest
+/config
 ```
 
 
-#### 2. (OPTIONAL) For creating a "speedtest only" Docker utility container, open a terminal/console and from the root path of this repository run:
+### Configuration File
+
+Expected configuration file:
+
+```text
+/config/config.yaml
+```
+
+> **ToDo:** Add the complete configuration reference, default values, validation rules, and examples.
+
+```yaml
+# TODO: Final Version 2 configuration example
+```
+
+
+### Environment Variables
+
+> **ToDo:** Pending section; document only environment variables that are actually required by the final container.
+
+Environment variables should be reserved primarily for container/deployment-level settings. Application behavior should preferably be configured through `/config/config.yaml`.
+
+
+### Changing Parameters of a Running Container
+
+> **ToDo:** Pending section; document which settings require a container restart and which, if any, can be reloaded dynamically.
+
+
+## Deployment Considerations
+
+> **ToDo:** Pending section; to be expanded once the final container architecture is available.
+
+
+### Data Volumes
+
+The final application is expected to use a single persistent volume:
+
+```text
+/config
+```
+
+Expected layout:
+
+```text
+/config/
+├── config.yaml
+└── data/
+    └── speedtest.sqlite3
+```
+
+> **ToDo:** Confirm final paths and permissions.
+
+
+### Ports
+
+The intended default application port is:
+
+| Port   | Purpose                    |
+| ------ | -------------------------- |
+| `8080` | Web dashboard and REST API |
+
+> **ToDo:** Confirm final port configuration.
+
+
+## Accessing the GUI
+
+The intended default URL is:
+
+```text
+http://SERVER_IP:8080
+```
+
+> **ToDo:** Update this section when the Version 2 web interface becomes available.
+
+
+## REST API
+
+> **ToDo:** The Version 2 REST API is not implemented yet.
+
+The REST API will serve as the public integration interface used both by the built-in frontend and by external applications.
+
+The currently planned API namespace is:
+
+```text
+/api/v1
+```
+
+Planned endpoints include:
+
+```text
+GET  /api/v1/status
+GET  /api/v1/results
+GET  /api/v1/statistics
+GET  /api/v1/config
+GET  /health
+
+POST /api/v1/tests/run
+```
+
+> **ToDo:** Replace this planned interface with the final validated API documentation and usage examples.
+
+
+## Persistent Data
+
+Version 2 is intended to keep all persistent application data under:
+
+```text
+/config
+```
+
+Expected database location:
+
+```text
+/config/data/speedtest.sqlite3
+```
+
+This allows configuration and historical data to remain accessible from the host for backup, monitoring, development, or external analysis.
+
+> **ToDo:** Confirm final persistence behavior and directory structure.
+
+
+## Backup and Restore
+
+> **ToDo:** Pending section; final backup and restore procedures will be documented before the Version 2 stable release.
+
+The intended design is for `/config` to contain everything required to preserve a deployment.
+
+
+## Migration from Version 1
+
+Version 2 is intended to preserve existing historical Version 1 data whenever reasonably possible.
+
+> **ToDo:** Add the final `v1.0.0` → `v2.0.0` migration procedure after the Version 2 database schema and migration system are implemented.
+
+During development, do not delete the original Version 1 SQLite database.
+
+
+## Shell Access
+
+> **ToDo:** Pending section; add shell access and diagnostic commands once the final image name and runtime structure are established.
+
+Expected usage:
 
 ```bash
-# Create a "speedtest only" Docker container.
-docker build -f ./dockerfiles/speedtestonly.dockerfile .
-
-# Get the speedtest version (replace the image_id with the one you got from the docker build command).
-docker run --rm 28b04b47f067 --version
-
-# Get help from the speedtest CLI (replace the image_id with the one you got from the docker build command).
-docker run --rm 28b04b47f067 --help
-
-# Run the speedtest (replace the image_id with the one you got from the docker build command).
-docker run --rm 28b04b47f067 --format=json-pretty
+# TODO
+docker exec -it speed-test /bin/sh
 ```
 
-Alternatively you can download the pre-built image from Docker Hub by doing:
+
+## Docker Image Versioning and Tags
+
+This project follows Semantic Versioning.
+
+Stable releases use:
+
+```text
+vMAJOR.MINOR.PATCH
+```
+
+Version 2 development milestones use prerelease identifiers:
+
+```text
+v2.0.0-alpha.1
+v2.0.0-alpha.2
+...
+v2.0.0
+```
+
+Alpha versions represent functional development milestones but are not considered stable releases.
+
+> **ToDo:** Document the final Docker Hub tag strategy before publishing Version 2.
+
+Expected stable Docker image tags may include:
+
+```text
+latest
+2
+2.0
+2.0.0
+```
+
+
+## Docker Image Update
+
+> **ToDo:** Pending section; update instructions will be finalized when the Version 2 image is published.
+
+Expected Docker Compose update procedure:
 
 ```bash
-# Pull the image from Docker Hub.
-docker pull cristiancampuzano/speedtestonly:1.0.0
-
-# Get the speedtest version.
-docker run --rm cristiancampuzano/speedtestonly:1.0.0 --version
-
-# Get help from the speedtest CLI.
-docker run --rm cristiancampuzano/speedtestonly:1.0.0 --help
-
-# Run the speedtest.
-docker run --rm cristiancampuzano/speedtestonly:1.0.0 --format=json-pretty
+docker compose pull
+docker compose up -d
 ```
 
 
-#### 3. For creating the database Docker container, copy the database file (/database/speedtest.sqlite3) to its final location in your system, open a terminal/console and from the root path of this repository run:
+## Building Locally
+
+> **ToDo:** Pending section; update after the final Version 2 Dockerfile is available.
+
+Expected development workflow:
 
 ```bash
-# Create the database Docker container.
-docker build -f ./dockerfiles/python.dockerfile .
+git clone https://github.com/cristianCanek/speed_test.git
+cd speed_test
 
-# Run the database Docker container (replace the image_id with the one you got from the docker build command and the database path accordingly to what you have locally).
-docker run -v C:/workspaces/speed_test/database:/app/database --rm 858f0142ecbc
-```
-
-Alternatively you can download the pre-built image from Docker Hub by doing:
-
-```bash
-# Pull the image from Docker Hub.
-docker pull cristiancampuzano/speedtest-database:1.0.0
-
-# Run the database Docker container (replace the database path accordingly to what you have locally).
-docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:1.0.0
+docker build .
 ```
 
 
-#### 4. Insert a new record to crontab to auto-run the database container every 15 minutes.
+## Development
 
-```bash
-# Editing crontab
-$ crontab -e
+Version 2 is being developed incrementally on:
 
-# Add a scheduled task (this one will be executed every 15 minutes).
-*/15 * * * * docker run -v /home/cristian/Documents/speed_test/database:/app/database --rm cristiancampuzano/speedtest-database:1.0.0
+```text
+v2-development
 ```
 
+Development milestones are tagged as:
 
-#### 5. For creating and running the webpage Docker containers, open a terminal/console and from the root path of this repository run:
-
-IMPORTANT: If you want to modify the webpage src, do some changes (documented as comments) within the docker-compose-dev.yaml and dockerfiles/php.dockerfile files before running the next command. Also do not forget to update the addresses where the volumes are pointing to.
-
-  ```bash
-  # Up the web Docker containers.
-  docker compose up -d
-  ```
-Alternatively you can download and run the pre-built images from Docker Hub by doing:
-
-IMPORTANT: Do not forget to update the addresses where the database volume is pointing to within the docker-compose.yaml file, you can also change the exposed port there.
-
-```bash
-# Pull the image from Docker Hub.
-docker compose -f docker-compose.yaml up -d
+```text
+v2.0.0-alpha.1
+v2.0.0-alpha.2
+...
 ```
 
+The complete Version 2 development plan is documented in:
 
-### 3. Monitor the results using a web page.
+```text
+ROADMAP.md
+```
 
-Once you have the webpage docker containers running, open your browser and go to [http://localhost:8000/](http://localhost:8000/) to watch the results. Change the port or ip address based on your setup.
+Stable releases are published from the default branch after validation.
+
+Development builds should not be considered replacements for the latest stable release until `v2.0.0` is published.
+
+
+## Versions
+
+### v1.0.0
+
+Initial stable release using the original multi-container architecture.
+
+Version 1 uses:
+
+- Python collector.
+- Ookla Speedtest CLI.
+- SQLite.
+- PHP.
+- Nginx.
+- Google Charts.
+- Host-based `crontab` scheduling.
+
+
+### v2.0.0
+
+> **ToDo:** Currently under development.
+
+Version 2 will progressively replace the original architecture through the alpha milestones documented in `ROADMAP.md`.
+
+Detailed implementation history will be maintained in `CHANGELOG.md`.
+
+
+## Troubleshooting
+
+> **ToDo:** Pending section; common problems and diagnostic procedures will be added as Version 2 functionality becomes available.
+
+Expected topics may include:
+
+- Container fails to start.
+- Configuration validation errors.
+- Database initialization/migration failures.
+- Ookla Speedtest CLI failures.
+- Scheduler failures.
+- Dashboard/API connectivity.
+- Permissions on `/config`.
+- Failed Internet speed tests.
 
 
 ## License
@@ -229,10 +455,12 @@ This project is licensed under the MIT License.
 See [LICENSE](LICENSE) for details.
 
 
-## Third-party software
+## Third-party Software
 
 This project uses Ookla's Speedtest CLI to perform network speed measurements.
 Ookla Speedtest CLI is distributed and licensed separately by Ookla.
+
+> **ToDo:** Add other third-party runtime components and their licenses as Version 2 dependencies are finalized.
 
 
 ## Disclaimer

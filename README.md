@@ -63,31 +63,43 @@ Current functionality includes:
 - Local web dashboard.
 - Dockerized deployment.
 - Internal Speedtest scheduling using APScheduler.
-- Clock-aligned measurements at HH:00, HH:15, HH:30 and HH:45.
+- Clock-aligned measurements with configurable scheduler intervals.
+- Configurable scheduler timezone.
 - Persistent collector container.
 - Protection against overlapping Speedtest executions.
+- Single persistent application-state volume at `/config`.
+- Automatic creation of default settings and the SQLite database.
+- Startup validation for scheduler settings.
+- Preservation of existing user-provided settings and historical SQLite data.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The first development milestone, `v2.0.0-alpha.1`, replaces host-based `crontab` scheduling with APScheduler while preserving the existing three-container web architecture and SQLite schema.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.2`, keeps the three-container architecture introduced in Alpha 1 while adding a single persistent application-state location and automatic initialization.
 
-Current `v2.0.0-alpha.1` architecture:
+Current `v2.0.0-alpha.2` architecture:
 
 ```mermaid
 flowchart TB
+
+    subgraph PersistentState["Persistent application state"]
+        Config["/config/settings.yaml"]
+        SQLite[("/config/data/speedtest.sqlite3")]
+    end
+
     subgraph CollectorContainer["Collector container"]
-        Scheduler["APScheduler<br/>HH:00 · HH:15 · HH:30 · HH:45"]
+        Settings["Settings loader + validation"]
+        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
         Collector["Python Collector"]
         Ookla["Ookla Speedtest CLI"]
+        DBInit["Database initialization"]
 
+        Settings --> Scheduler
         Scheduler --> Collector
         Collector --> Ookla
     end
-
-    SQLite[("SQLite")]
 
     subgraph PHPContainer["PHP container"]
         PHP["PHP Backend"]
@@ -100,6 +112,8 @@ flowchart TB
     Browser["Web Browser"]
     Google["Google Charts"]
 
+    Config --> Settings
+    DBInit --> SQLite
     Collector --> SQLite
     SQLite --> PHP
     PHP --> Nginx
@@ -107,15 +121,42 @@ flowchart TB
     Browser --> Google
 ```
 
+Persistent application state:
+
+```text
+/config/
+├── settings.yaml
+├── data/
+│   └── speedtest.sqlite3
+└── logs/
+```
+
+Current internal collector layout:
+
+```text
+/app/
+├── collector/
+│   └── speedtest.py
+├── config/
+│   ├── settings.py
+│   └── settings.default.yaml
+├── database/
+│   ├── database.py
+│   └── schema.sql
+└── bin/
+    └── speedtest
+```
+
 The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
 
 Target Version 2 architecture:
 
-
-
 ```mermaid
 flowchart TB
-    Browser["Web Browser"]
+    subgraph PersistentState["Persistent application state"]
+        Config["/config/settings.yaml"]
+        SQLite[("/config/data/speedtest.sqlite3")]
+    end
 
     subgraph Container["speed_test container"]
         FastAPI["FastAPI"]
@@ -134,9 +175,8 @@ flowchart TB
         Collector --> Database
         API --> Database
     end
-
-    SQLite[("SQLite<br/>/config/data/speedtest.sqlite3")]
-    Config["/config/config.yaml"]
+    
+    Browser["Web Browser"]
 
     Browser --> FastAPI
     Database --> SQLite
@@ -170,9 +210,27 @@ http://SERVER_IP:8080
 
 ## Application Setup
 
-> **ToDo:** Pending section; to be completed when automatic configuration and database initialization are implemented.
+Version 2 development now initializes its persistent application state automatically.
 
-Version 2 is intended to initialize its required configuration and SQLite database automatically when they do not already exist.
+On first startup, the collector:
+
+1. Creates the `/config` directory structure when missing.
+2. Creates `/config/settings.yaml` from the packaged defaults when missing.
+3. Creates `/config/data/speedtest.sqlite3` using the current Version 1-compatible schema when missing.
+4. Preserves existing user-provided settings and database files.
+5. Validates scheduler settings before starting APScheduler.
+
+Current persistent layout:
+
+```text
+/config/
+├── settings.yaml
+├── data/
+│   └── speedtest.sqlite3
+└── logs/
+```
+
+The `logs/` directory is reserved for future logging support. The collector does not write `collector.log` yet.
 
 
 ## Usage
@@ -202,40 +260,71 @@ Docker Compose will be the recommended deployment method.
 
 ## Configuration
 
-> **ToDo:** Pending section; configuration options will be documented as they are implemented.
-
-Version 2 is expected to use a persistent configuration directory:
+Application behavior is configured through:
 
 ```text
-/config
+/config/settings.yaml
 ```
 
 
 ### Configuration File
 
-Expected configuration file:
-
-```text
-/config/config.yaml
-```
-
-> **ToDo:** Add the complete configuration reference, default values, validation rules, and examples.
+The current default configuration is:
 
 ```yaml
-# TODO: Final Version 2 configuration example
+scheduler:
+  interval_minutes: 15
+  timezone: UTC
 ```
+
+`scheduler.interval_minutes` controls the clock-aligned Speedtest schedule.
+
+Supported values are:
+
+```text
+1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60
+```
+
+Only positive divisors of 60 are accepted so executions remain aligned to the clock.
+
+Examples:
+
+```text
+5  → HH:00, HH:05, HH:10, ...
+15 → HH:00, HH:15, HH:30, HH:45
+30 → HH:00, HH:30
+60 → HH:00
+```
+
+`scheduler.timezone` accepts a valid IANA timezone name, for example:
+
+```yaml
+scheduler:
+  interval_minutes: 15
+  timezone: America/Mexico_City
+```
+
+Invalid settings prevent the collector from starting and produce a configuration error in the container logs. Existing settings are never silently overwritten with defaults.
 
 
 ### Environment Variables
 
 > **ToDo:** Pending section; document only environment variables that are actually required by the final container.
 
-Environment variables should be reserved primarily for container/deployment-level settings. Application behavior should preferably be configured through `/config/config.yaml`.
+Environment variables should be reserved primarily for container/deployment-level settings. Application behavior should preferably be configured through `/config/settings.yaml`.
 
 
 ### Changing Parameters of a Running Container
 
-> **ToDo:** Pending section; document which settings require a container restart and which, if any, can be reloaded dynamically.
+Changes to `/config/settings.yaml` currently require a collector restart.
+
+For example:
+
+```bash
+docker compose -f docker-compose-dev.yaml restart collector
+```
+
+The updated settings are validated and applied during startup.
 
 
 ## Deployment Considerations
@@ -245,22 +334,21 @@ Environment variables should be reserved primarily for container/deployment-leve
 
 ### Data Volumes
 
-The final application is expected to use a single persistent volume:
+The application now uses `/config` as its persistent application-state volume.
 
-```text
-/config
-```
-
-Expected layout:
+Current layout:
 
 ```text
 /config/
-├── config.yaml
-└── data/
-    └── speedtest.sqlite3
+├── settings.yaml
+├── data/
+│   └── speedtest.sqlite3
+└── logs/
 ```
 
-> **ToDo:** Confirm final paths and permissions.
+The collector and PHP backend share the same persistent SQLite database at `/config/data/speedtest.sqlite3`.
+
+> **ToDo:** Confirm final permissions and deployment examples before the stable Version 2 release.
 
 
 ### Ports
@@ -314,21 +402,22 @@ POST /api/v1/tests/run
 
 ## Persistent Data
 
-Version 2 is intended to keep all persistent application data under:
+Version 2 keeps its current persistent application state under:
 
 ```text
 /config
 ```
 
-Expected database location:
+Current persistent files include:
 
 ```text
+/config/settings.yaml
 /config/data/speedtest.sqlite3
 ```
 
-This allows configuration and historical data to remain accessible from the host for backup, monitoring, development, or external analysis.
+The `/config/logs/` directory is reserved for future application logs.
 
-> **ToDo:** Confirm final persistence behavior and directory structure.
+This allows configuration and historical data to remain accessible from the host for backup, monitoring, development, or external analysis.
 
 
 ## Backup and Restore
@@ -474,6 +563,24 @@ Alpha 1 introduces:
 - Cross-process protection against overlapping Speedtest executions.
 - Removal of the host `crontab` dependency.
 - Compatibility with the existing Version 1 SQLite schema and web dashboard.
+
+
+### v2.0.0-alpha.2
+
+Second functional Version 2 development milestone.
+
+Alpha 2 introduces:
+
+- `/config` as the persistent application-state volume.
+- `/config/settings.yaml` with default scheduler settings.
+- Configurable clock-aligned Speedtest intervals.
+- Configurable IANA scheduler timezone.
+- Automatic creation of the persistent directory structure.
+- Automatic creation of the SQLite database when missing.
+- Preservation of user-provided settings and existing historical databases.
+- Startup validation with user-friendly configuration errors.
+- Internal separation of collector, configuration, database, and bundled executable files.
+
 
 ### v2.0.0
 

@@ -67,7 +67,7 @@ Application containers: 3
 flowchart LR
     V1["v1.0.0<br/>3 containers<br/>Host cron<br/>Google Charts"]
     A1["alpha.1 ✓<br/>3 containers<br/>APScheduler"]
-    A2["alpha.2<br/>3 containers<br/>Persistent /config"]
+    A2["alpha.2 ✓<br/>3 containers<br/>Persistent /config"]
     A3["alpha.3<br/>3 containers<br/>Chart.js"]
     A4["alpha.4<br/>3 containers<br/>Frontend refactor"]
     A5["alpha.5<br/>2 containers<br/>FastAPI + REST API"]
@@ -143,31 +143,57 @@ External host `cron` dependency: Removed
 
 ## v2.0.0-alpha.2 — Persistent configuration
 
+**Status:** ✅ Completed
+
 ### Goal
 
-Introduce a single persistent configuration location and make initial setup automatic.
+Introduce a single persistent application-state location and make initial setup automatic.
 
 
-### Planned work
+### Completed work
 
-- Introduce `/config` as the persistent volume.
-- Move the database to: `/config/data/speedtest.sqlite3`
-- Introduce: `/config/config.yaml`
-- Create default configuration automatically when missing.
-- Create the SQLite database automatically when missing.
-- Preserve user-provided configuration and database files.
-- Move APScheduler timing configuration into settings.
-- Define default values.
-- Validate configuration on startup.
+- Introduced `/config` as the persistent application-state volume.
+- Moved the database to `/config/data/speedtest.sqlite3`.
+- Introduced `/config/settings.yaml`.
+- Reserved `/config/logs/` for future collector logging.
+- Created the required `/config` directory structure automatically when missing.
+- Created default settings automatically when missing.
+- Created the current Version 1-compatible SQLite database automatically when missing.
+- Preserved user-provided settings and existing database files.
+- Moved APScheduler interval and timezone configuration into settings.
+- Defined and documented default scheduler values.
+- Kept executions aligned to the clock for every supported interval.
+- Validated scheduler settings on startup.
+- Added user-friendly configuration errors for invalid intervals, invalid types, malformed YAML, and invalid timezones.
+- Added internal modules for configuration and database initialization.
+- Moved the bundled Ookla executable to `/app/bin/speedtest`.
 
 
 ### Target persistent layout
 
 ```text
 /config/
-├── config.yaml
-└── data/
-    └── speedtest.sqlite3
+├── settings.yaml
+├── data/
+│   └── speedtest.sqlite3
+└── logs/
+```
+
+
+### Target internal filesystem
+
+```text
+/app/
+├── collector/
+│   └── speedtest.py
+├── config/
+│   ├── settings.py
+│   └── settings.default.yaml
+├── database/
+│   ├── database.py
+│   └── schema.sql
+└── bin/
+    └── speedtest
 ```
 
 
@@ -383,6 +409,7 @@ Database repository
 ```
 
 - Refactor current collector code.
+- Writing /config/logs/collector.log
 - Add timeout handling.
 - Validate Ookla JSON output.
 - Handle exit codes.

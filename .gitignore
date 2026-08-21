@@ -1,0 +1,7 @@
+# Runtime application state.
+/config/*
+!/config/.gitkeep
+
+# Python generated files.
+__pycache__/
+*.py[cod]

@@ -12,7 +12,7 @@
 // ---- CONSTANTS --------------------------------------------------------------
 
 // Database's name.
-const DB_NAME = "/app/database/speedtest.sqlite3";
+const DB_NAME = "/config/data/speedtest.sqlite3";
 
 // ---- GLOBAL VARIABLES -------------------------------------------------------
 // Strings with database data, used by the charts generator.

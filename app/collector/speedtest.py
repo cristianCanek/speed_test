@@ -8,9 +8,13 @@ import fcntl
 import subprocess
 import json
 import sqlite3
+import sys
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron       import CronTrigger
+
+from config.settings                 import SettingsError, load_settings
+from database.database               import DATABASE_FILE, ensure_database
 
 
 # ======================================================================================================================
@@ -18,10 +22,7 @@ from apscheduler.triggers.cron       import CronTrigger
 # ======================================================================================================================
 
 # The command to perform the speed test.
-SPEED_TEST_COMMAND = "/app/speedtest --accept-license --accept-gdpr -f json-pretty";
-
-# Database's name.
-DB_NAME = "/app/database/speedtest.sqlite3";
+SPEED_TEST_COMMAND = "/app/bin/speedtest --accept-license --accept-gdpr -f json-pretty";
 
 # Lockfile to avoid running multiple speed tests at the same time.
 LOCK_FILE = "/tmp/speed_test.lock"
@@ -41,7 +42,6 @@ class SpeedTest():
     def run( self ):
         try:
             self.result = json.loads( subprocess.check_output( SPEED_TEST_COMMAND, shell=True, text=True ) );
-            #print( self.result );
         except subprocess.CalledProcessError as e:
             self.lastSpeedtestWithError = True;
             print( f"Error executing command: {e}" );
@@ -126,7 +126,7 @@ class SpeedTest():
                 self.result["result"]["persisted"]
             );
 
-            placeholders = ", ".join(["?"] * len(STR_VALUES))
+            placeholders = ", ".join( ["?"] * len( STR_VALUES ) )
 
             STR_INSERT = f"INSERT INTO rawResults( {STR_COLUMNS} ) VALUES( {placeholders} )";
 
@@ -155,7 +155,7 @@ def run_speedtest():
         conn = None
 
         try:
-            conn = sqlite3.connect( DB_NAME )
+            conn = sqlite3.connect( DATABASE_FILE )
             speedTest = SpeedTest( conn )
             print("Running Speedtest.")
             speedTest.run()
@@ -168,12 +168,19 @@ def run_speedtest():
             fcntl.flock( lock_file, fcntl.LOCK_UN )
 
 # Run the speed test scheduler.
-def run_scheduler():
-    scheduler = BlockingScheduler( timezone="UTC" )
+def run_scheduler( settings ):
+    interval_minutes = settings["scheduler"]["interval_minutes"]
+    timezone         = settings["scheduler"]["timezone"]
+
+    # A 60-minute interval must run at minute zero. All other supported
+    # intervals are divisors of 60 and therefore remain aligned to the clock.
+    cron_minute = "0" if interval_minutes == 60 else f"*/{interval_minutes}"
+
+    scheduler = BlockingScheduler( timezone=timezone )
 
     scheduler.add_job(
         run_speedtest,
-        trigger            = CronTrigger( minute="*/15", second=0, timezone="UTC" ),
+        trigger            = CronTrigger( minute=cron_minute, second=0, timezone=timezone ),
         id                 = "speedtest",
         max_instances      = 1,
         coalesce           = True,
@@ -182,7 +189,8 @@ def run_scheduler():
     )
 
     print( "speed_test collector started." )
-    print( "Scheduled Speedtests: HH:00, HH:15, HH:30 and HH:45." )
+    print( f"Scheduled Speedtests every {interval_minutes} minute(s), aligned to the clock." )
+    print( f"Scheduler timezone: {timezone}." )
 
     try:
         scheduler.start()
@@ -194,4 +202,16 @@ def run_scheduler():
 # ======================================================================================================================
 
 if __name__ == "__main__":
-    run_scheduler()
+    try:
+        settings = load_settings()
+        ensure_database()
+        run_scheduler( settings )
+
+    except SettingsError as err:
+        print( "", file=sys.stderr )
+        print( "speed_test configuration error:", file=sys.stderr )
+        print( f"  {err}", file=sys.stderr )
+        print( "", file=sys.stderr )
+        print( "Collector startup aborted.", file=sys.stderr )
+
+        raise SystemExit( 1 ) from None

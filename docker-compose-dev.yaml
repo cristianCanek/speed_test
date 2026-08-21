@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: dockerfiles/python.dockerfile
     volumes:
-      - C:/workspaces/speed_test/database:/app/database
+      - C:/workspaces/speed_test/config:/config
     restart: unless-stopped
   webserver:
     build:
@@ -20,6 +20,6 @@ services:
       context: .
       dockerfile: dockerfiles/php.dockerfile
     volumes:
-      - C:/workspaces/speed_test/database:/app/database
+      - C:/workspaces/speed_test/config:/config
       # Comment this line for production, keep it as it is for development
       - C:/workspaces/speed_test/web_page:/app/public

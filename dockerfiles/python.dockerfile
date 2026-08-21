@@ -2,13 +2,19 @@ FROM python:3.13.5-alpine3.22
 
 WORKDIR /app
 
+RUN apk add --no-cache tzdata
+
 COPY ./requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./apis/speedtest .
+COPY ./app/collector ./collector
+COPY ./app/config ./config
+COPY ./app/database ./database
 
-COPY ./app/collector/speedtest.py .
+RUN mkdir -p /app/bin
+COPY ./apis/speedtest /app/bin/speedtest
+RUN chmod +x /app/bin/speedtest
 
 STOPSIGNAL SIGINT
 
-CMD ["python", "-u", "/app/speedtest.py"]
+CMD ["python", "-u", "-m", "collector.speedtest"]

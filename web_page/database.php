@@ -15,7 +15,8 @@
 const DB_NAME = "/config/data/speedtest.sqlite3";
 
 // ---- GLOBAL VARIABLES -------------------------------------------------------
-// Strings with database data, used by the charts generator.
+
+// JSON strings with database data, used by Chart.js.
 $string_data_day   = "[]";
 $string_data_week  = "[]";
 $string_data_month = "[]";
@@ -42,16 +43,54 @@ class MyDB extends SQLite3 {
 
 
 // =============================================================================
+// Functions definition.
+// =============================================================================
+
+// Convert one SQLite result set into the compact array format consumed by
+// Chart.js:
+//
+// [
+//     [ timestamp, download, upload, ping, download_latency, upload_latency ],
+//     ...
+// ]
+function resultToChartData( $result ) {
+    $data = [];
+
+    while ( $row = $result->fetchArray( SQLITE3_ASSOC ) ) {
+        $data[] = [
+            $row['timestamp'],
+            (float) $row['download_bandwith'],
+            (float) $row['upload_bandwith'],
+            (int)   $row['ping_latency'],
+            (int)   $row['download_latency_iqm'],
+            (int)   $row['upload_latency_iqm']
+        ];
+    }
+
+    return json_encode( $data, JSON_UNESCAPED_SLASHES );
+}
+
+
+// =============================================================================
 // Main program.
 // =============================================================================
 
-// set the default timezone to use.
+// Set the default timezone to use.
 date_default_timezone_set( 'America/Mexico_City' );
 
 $conn = new MyDB();
 
 // Get last result data.
-$result_last = $conn->query( "SELECT timestamp, round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2) as download_bandwith, round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2) as upload_bandwith, CAST( ping_latency as INT ) as ping_latency, CAST( download_latency_iqm as INT ) as download_latency_iqm, CAST( upload_latency_iqm as INT ) as upload_latency_iqm, result_url FROM rawResults_last" );
+$result_last = $conn->query(
+    "SELECT timestamp,
+            round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2 ) as download_bandwith,
+            round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2 )   as upload_bandwith,
+            CAST( ping_latency as INT )                                      as ping_latency,
+            CAST( download_latency_iqm as INT )                              as download_latency_iqm,
+            CAST( upload_latency_iqm as INT )                                as upload_latency_iqm,
+            result_url
+     FROM rawResults_last"
+);
 
 while ( $row = $result_last->fetchArray() ) {
     $last_timestamp            = date( 'd/m/Y h:i A', strtotime( $row['timestamp'] ) );
@@ -64,37 +103,46 @@ while ( $row = $result_last->fetchArray() ) {
 }
 
 // Get last 1 day's data.
-$result_day = $conn->query( "SELECT timestamp, round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2) as download_bandwith, round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2) as upload_bandwith, CAST( ping_latency as INT ) as ping_latency, CAST( download_latency_iqm as INT ) as download_latency_iqm, CAST( upload_latency_iqm as INT ) as upload_latency_iqm FROM rawResults_day order by timestamp asc" );
+$result_day = $conn->query(
+    "SELECT timestamp,
+            round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2 ) as download_bandwith,
+            round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2 )   as upload_bandwith,
+            CAST( ping_latency as INT )                                      as ping_latency,
+            CAST( download_latency_iqm as INT )                              as download_latency_iqm,
+            CAST( upload_latency_iqm as INT )                                as upload_latency_iqm
+     FROM rawResults_day
+     ORDER BY timestamp ASC"
+);
 
-$string_data_day = "[";
-
-while ( $row = $result_day->fetchArray() ) {
-    $string_data_day .= " [ new Date(\"" . $row['timestamp'] . "\"), " . $row['download_bandwith'] . " , " . $row['upload_bandwith'] . " , " . $row['ping_latency'] . " , " . $row['download_latency_iqm'] . " , " . $row['upload_latency_iqm'] . "],";
-}
-
-$string_data_day = substr( $string_data_day, 0, -1 ) . " ]";
+$string_data_day = resultToChartData( $result_day );
 
 // Get last 7 days data.
-$result_week = $conn->query( "SELECT timestamp, round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2) as download_bandwith, round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2) as upload_bandwith, CAST( ping_latency as INT ) as ping_latency, CAST( download_latency_iqm as INT ) as download_latency_iqm, CAST( upload_latency_iqm as INT ) as upload_latency_iqm FROM rawResults_week order by timestamp asc" );
+$result_week = $conn->query(
+    "SELECT timestamp,
+            round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2 ) as download_bandwith,
+            round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2 )   as upload_bandwith,
+            CAST( ping_latency as INT )                                      as ping_latency,
+            CAST( download_latency_iqm as INT )                              as download_latency_iqm,
+            CAST( upload_latency_iqm as INT )                                as upload_latency_iqm
+     FROM rawResults_week
+     ORDER BY timestamp ASC"
+);
 
-$string_data_week = "[";
-
-while ( $row = $result_week->fetchArray() ) {
-    $string_data_week .= " [ new Date(\"" . $row['timestamp'] . "\"), " . $row['download_bandwith'] . " , " . $row['upload_bandwith'] . " , " . $row['ping_latency'] . " , " . $row['download_latency_iqm'] . " , " . $row['upload_latency_iqm'] . "],";
-}
-
-$string_data_week = substr( $string_data_week, 0, -1 ) . " ]";
+$string_data_week = resultToChartData( $result_week );
 
 // Get last 1 month's data.
-$result_month = $conn->query( "SELECT timestamp, round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2) as download_bandwith, round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2) as upload_bandwith, CAST( ping_latency as INT ) as ping_latency, CAST( download_latency_iqm as INT ) as download_latency_iqm, CAST( upload_latency_iqm as INT ) as upload_latency_iqm FROM rawResults_month order by timestamp asc" );
+$result_month = $conn->query(
+    "SELECT timestamp,
+            round( CAST( download_bandwith as float ) / 1000 / 1000 * 8, 2 ) as download_bandwith,
+            round( CAST( upload_bandwith as float ) / 1000 / 1000 * 8, 2 )   as upload_bandwith,
+            CAST( ping_latency as INT )                                      as ping_latency,
+            CAST( download_latency_iqm as INT )                              as download_latency_iqm,
+            CAST( upload_latency_iqm as INT )                                as upload_latency_iqm
+     FROM rawResults_month
+     ORDER BY timestamp ASC"
+);
 
-$string_data_month = "[";
-
-while ( $row = $result_month->fetchArray() ) {
-    $string_data_month .= " [ new Date(\"" . $row['timestamp'] . "\"), " . $row['download_bandwith'] . " , " . $row['upload_bandwith'] . " , " . $row['ping_latency'] . " , " . $row['download_latency_iqm'] . " , " . $row['upload_latency_iqm'] . "],";
-}
-
-$string_data_month = substr( $string_data_month, 0, -1 ) . " ]";
+$string_data_month = resultToChartData( $result_month );
 
 // Closing the database connection.
 $conn->close();

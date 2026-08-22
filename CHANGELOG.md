@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.3] - 2026-08-21](#v200-alpha3---2026-08-21)
 - [[v2.0.0-alpha.2] - 2026-08-20](#v200-alpha2---2026-08-20)
 - [[v2.0.0-alpha.1] - 2026-08-20](#v200-alpha1---2026-08-20)
 - [[v1.0.0] - 2026-08-19](#v100---2026-08-19)
@@ -17,6 +18,53 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.3] - 2026-08-21
+
+Third functional development milestone toward Version 2.
+
+
+### Added
+
+- Added Chart.js as the local dashboard charting library.
+- Added the vendored Chart.js UMD runtime under `web_page/js/vendor/`.
+- Added local frontend asset delivery through the existing Nginx container.
+- Added JSON-compatible PHP-generated datasets for Chart.js.
+- Added reusable JavaScript helpers for chart data conversion and date formatting.
+
+
+### Changed
+
+- Replaced Google Charts rendering with Chart.js.
+- Changed the 24-hour, weekly, and monthly charts to consume the same existing historical datasets through Chart.js.
+- Changed chart X-axis scaling so datasets span the full available chart width.
+- Updated Nginx and PHP image packaging to include the current frontend files and local JavaScript assets.
+- Preserved the current PHP backend, SQLite schema, collector behavior, and three-container architecture.
+
+
+### Removed
+
+- Removed the Google Charts frontend runtime dependency.
+- Removed the need for an external chart/CDN connection during dashboard runtime.
+
+
+### Validation
+
+- Verified the latest-result view continues to render.
+- Verified the 24-hour chart renders correctly.
+- Verified the weekly chart renders correctly.
+- Verified the monthly chart renders correctly.
+- Verified the dashboard works with a copy of the existing production SQLite database.
+- Verified the dashboard can be loaded through LAN with the WAN uplink physically disconnected.
+- Verified Chart.js is loaded from the local application assets rather than an external CDN.
+
+
+### Documentation
+
+- Updated the README with the Alpha 3 Chart.js architecture and offline behavior.
+- Marked `v2.0.0-alpha.3` as completed in the Version 2 roadmap.
+- Added the final Docker packaging task for automatic extraction of the bundled Ookla Speedtest CLI archive before the Version 2 stable release.
 
 
 ## [v2.0.0-alpha.2] - 2026-08-20

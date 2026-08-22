@@ -68,7 +68,7 @@ flowchart LR
     V1["v1.0.0<br/>3 containers<br/>Host cron<br/>Google Charts"]
     A1["alpha.1 ✓<br/>3 containers<br/>APScheduler"]
     A2["alpha.2 ✓<br/>3 containers<br/>Persistent /config"]
-    A3["alpha.3<br/>3 containers<br/>Chart.js"]
+    A3["alpha.3 ✓<br/>3 containers<br/>Chart.js"]
     A4["alpha.4<br/>3 containers<br/>Frontend refactor"]
     A5["alpha.5<br/>2 containers<br/>FastAPI + REST API"]
     A6["alpha.6<br/>2 containers<br/>Database V2"]
@@ -199,23 +199,29 @@ Introduce a single persistent application-state location and make initial setup 
 
 ## v2.0.0-alpha.3 — Offline Chart.js visualization
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Remove the frontend dependency on Google Charts while keeping the existing datasets and backend behavior.
 
 
-### Planned work
+### Completed work
 
-- Replace Google Charts with Chart.js.
-- Bundle Chart.js locally.
-- Keep current historical datasets initially.
-- Preserve current PHP-generated data.
-- Verify existing 24-hour, weekly and monthly views.
-- Ensure charts work without WAN access.
-- Remove all external chart/CDN dependencies.
+- Replaced Google Charts with Chart.js.
+- Bundled Chart.js locally under `web_page/js/vendor/`.
+- Preserved the current 24-hour, weekly, and monthly historical datasets.
+- Preserved PHP as the current data-producing backend.
+- Changed PHP chart output to JSON-compatible datasets consumed by Chart.js.
+- Updated Nginx/PHP container packaging so frontend assets are available locally.
+- Preserved the existing dashboard views and overall presentation.
+- Updated chart scaling so each dataset uses the full available X-axis range.
+- Removed the Google Charts runtime dependency.
+- Removed external chart/CDN requirements during application runtime.
+- Verified chart rendering over LAN with the WAN uplink physically disconnected.
 
 
-### Required validation
+### Validation
 
 ```text
 WAN disconnected
@@ -225,6 +231,9 @@ Dashboard opened through LAN
       │
       ▼
 Charts render correctly
+      │
+      ▼
+PASSED
 ```
 
 
@@ -467,7 +476,7 @@ flowchart TB
     end
 
     SQLite[("SQLite")]
-    Config["config.yaml"]
+    Config["settings.yaml"]
 
     Browser --> FastAPI
     External --> API
@@ -538,6 +547,7 @@ Prepare the new architecture for a stable public release.
 ### Docker
 
 - Final Dockerfile.
+- Extract the bundled Ookla Speedtest CLI archive during the Docker image build so no manual pre-extraction is required.
 - OCI image labels.
 - `/config` permissions.
 - Image size review.

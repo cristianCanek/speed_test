@@ -35,6 +35,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
   - [Data Volumes](#data-volumes)
   - [Ports](#ports)
 - [Accessing the GUI](#accessing-the-gui)
+- [Dashboard Visualization](#dashboard-visualization)
 - [REST API](#rest-api)
 - [Persistent Data](#persistent-data)
 - [Backup and Restore](#backup-and-restore)
@@ -45,6 +46,11 @@ Self-hosted Docker application for continuously monitoring Internet connection p
 - [Building Locally](#building-locally)
 - [Development](#development)
 - [Versions](#versions)
+   - [v1.0.0](#v100)
+   - [v2.0.0-alpha.1](#v200-alpha1)
+   - [v2.0.0-alpha.2](#v200-alpha2)
+   - [v2.0.0-alpha.3](#v200-alpha3)
+   - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 - [Third-party Software](#third-party-software)
@@ -71,15 +77,18 @@ Current functionality includes:
 - Automatic creation of default settings and the SQLite database.
 - Startup validation for scheduler settings.
 - Preservation of existing user-provided settings and historical SQLite data.
+- Local Chart.js visualization with no runtime CDN dependency.
+- 24-hour, weekly, and monthly charts rendered from the existing PHP-generated datasets.
+- Dashboard charts available over LAN even when WAN access is unavailable.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.2`, keeps the three-container architecture introduced in Alpha 1 while adding a single persistent application-state location and automatic initialization.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.3`, keeps the three-container architecture from Alpha 2 while replacing Google Charts with a locally bundled Chart.js runtime.
 
-Current `v2.0.0-alpha.2` architecture:
+Current `v2.0.0-alpha.3` architecture:
 
 ```mermaid
 flowchart TB
@@ -102,15 +111,17 @@ flowchart TB
     end
 
     subgraph PHPContainer["PHP container"]
-        PHP["PHP Backend"]
+        PHP["PHP Backend<br/>Generates chart datasets"]
     end
 
     subgraph NginxContainer["Nginx container"]
-        Nginx["Nginx"]
+        Nginx["Nginx<br/>Serves frontend + local assets"]
+        ChartJS["Local Chart.js<br/>/web_page/js/vendor/chart.umd.min.js"]
+
+        Nginx --> ChartJS
     end
 
     Browser["Web Browser"]
-    Google["Google Charts"]
 
     Config --> Settings
     DBInit --> SQLite
@@ -118,7 +129,6 @@ flowchart TB
     SQLite --> PHP
     PHP --> Nginx
     Nginx --> Browser
-    Browser --> Google
 ```
 
 Persistent application state:
@@ -145,6 +155,19 @@ Current internal collector layout:
 │   └── schema.sql
 └── bin/
     └── speedtest
+```
+
+Current frontend layout:
+
+```text
+/web_page/
+├── index.php
+├── database.php
+├── stylesheet.css
+└── js/
+    └── vendor/
+        ├── chart.umd.min.js
+        └── README.md
 ```
 
 The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
@@ -175,7 +198,7 @@ flowchart TB
         Collector --> Database
         API --> Database
     end
-    
+
     Browser["Web Browser"]
 
     Browser --> FastAPI
@@ -371,6 +394,25 @@ http://SERVER_IP:8080
 ```
 
 > **ToDo:** Update this section when the Version 2 web interface becomes available.
+
+
+## Dashboard Visualization
+
+`v2.0.0-alpha.3` replaces the Google Charts runtime with Chart.js bundled locally under:
+
+```text
+/web_page/js/vendor/chart.umd.min.js
+```
+
+The current dashboard continues to use PHP-generated datasets and preserves the existing historical views:
+
+- Last 24 hours.
+- Last week.
+- Last month.
+
+Chart rendering no longer depends on Google Charts, a CDN, or WAN connectivity. This behavior was validated by disconnecting the WAN uplink while keeping the client and server connected through the local network and loading the dashboard through LAN.
+
+> **ToDo:** The frontend structure and responsive behavior will be refactored in a later milestone.
 
 
 ## REST API
@@ -582,6 +624,21 @@ Alpha 2 introduces:
 - Internal separation of collector, configuration, database, and bundled executable files.
 
 
+### v2.0.0-alpha.3
+
+Third functional Version 2 development milestone.
+
+Alpha 3 introduces:
+
+- Chart.js as the dashboard charting library.
+- A locally bundled Chart.js runtime with no CDN dependency.
+- Chart.js rendering for the existing 24-hour, weekly, and monthly historical datasets.
+- PHP-generated JSON-compatible chart datasets.
+- Local serving of frontend assets through Nginx.
+- Offline/LAN-only dashboard visualization without WAN access.
+- Chart scaling across the full available X-axis data range.
+
+
 ### v2.0.0
 
 > **ToDo:** Currently under development.
@@ -619,7 +676,13 @@ See [LICENSE](LICENSE) for details.
 This project uses Ookla's Speedtest CLI to perform network speed measurements.
 Ookla Speedtest CLI is distributed and licensed separately by Ookla.
 
-Version 2 development also uses APScheduler for internal Speedtest scheduling.
+Version 2 development also uses:
+
+- APScheduler for internal Speedtest scheduling.
+- PyYAML for YAML settings parsing.
+- Chart.js for local dashboard visualization.
+
+Chart.js is bundled locally with the project so dashboard charts do not require CDN or WAN access at runtime.
 
 > **ToDo:** Add additional third-party runtime components and their licenses as Version 2 dependencies are finalized.
 

@@ -7,6 +7,7 @@ services:
     volumes:
       - C:/workspaces/speed_test/config:/config
     restart: unless-stopped
+
   webserver:
     build:
       context: .
@@ -15,6 +16,11 @@ services:
       - "8000:80"
     depends_on:
       - phpserver
+    volumes:
+      # Nginx needs the same frontend files in development so it can serve
+      # local static assets such as Chart.js.
+      - C:/workspaces/speed_test/web_page:/app/public:ro
+
   phpserver:
     build:
       context: .

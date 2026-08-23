@@ -1,0 +1,3 @@
+FastAPI==0.141.1
+Uvicorn==0.52.1
+PyYAML==6.0.3

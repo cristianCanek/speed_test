@@ -50,6 +50,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
    - [v2.0.0-alpha.1](#v200-alpha1)
    - [v2.0.0-alpha.2](#v200-alpha2)
    - [v2.0.0-alpha.3](#v200-alpha3)
+   - [v2.0.0-alpha.4](#v200-alpha4)
    - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -80,15 +81,21 @@ Current functionality includes:
 - Local Chart.js visualization with no runtime CDN dependency.
 - 24-hour, weekly, and monthly charts rendered from the existing PHP-generated datasets.
 - Dashboard charts available over LAN even when WAN access is unavailable.
+- Presentation layer separated into HTML, CSS, and Vanilla JavaScript.
+- Reusable Chart.js logic in dedicated frontend modules.
+- Responsive dashboard layout using CSS Grid and Flexbox.
+- Responsive Chart.js canvases for desktop, tablet, and mobile widths.
+- Asynchronous frontend data-source abstraction prepared for REST API consumption.
+- Local favicon and application title for a complete browser experience.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.3`, keeps the three-container architecture from Alpha 2 while replacing Google Charts with a locally bundled Chart.js runtime.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.4`, keeps the three-container runtime architecture while refactoring the presentation layer toward the final Version 2 frontend stack.
 
-Current `v2.0.0-alpha.3` architecture:
+Current `v2.0.0-alpha.4` architecture:
 
 ```mermaid
 flowchart TB
@@ -111,14 +118,22 @@ flowchart TB
     end
 
     subgraph PHPContainer["PHP container"]
-        PHP["PHP Backend<br/>Generates chart datasets"]
+        PHP["PHP Data Backend<br/>SQLite → bootstrap JSON"]
     end
 
     subgraph NginxContainer["Nginx container"]
         Nginx["Nginx<br/>Serves frontend + local assets"]
-        ChartJS["Local Chart.js<br/>/web_page/js/vendor/chart.umd.min.js"]
+        Frontend["HTML + CSS + Vanilla JavaScript"]
+        DataSource["data-source.js<br/>Async data abstraction"]
+        Charts["charts.js<br/>Reusable Chart.js logic"]
+        App["app.js<br/>Presentation controller"]
+        ChartJS["Local Chart.js"]
 
-        Nginx --> ChartJS
+        Nginx --> Frontend
+        Frontend --> DataSource
+        Frontend --> Charts
+        Frontend --> App
+        Charts --> ChartJS
     end
 
     Browser["Web Browser"]
@@ -127,7 +142,7 @@ flowchart TB
     DBInit --> SQLite
     Collector --> SQLite
     SQLite --> PHP
-    PHP --> Nginx
+    PHP --> DataSource
     Nginx --> Browser
 ```
 
@@ -164,11 +179,36 @@ Current frontend layout:
 ├── index.php
 ├── database.php
 ├── stylesheet.css
+├── assets/
+│   └── favicon.svg
 └── js/
+    ├── app.js
+    ├── charts.js
+    ├── data-source.js
     └── vendor/
         ├── chart.umd.min.js
         └── README.md
 ```
+
+Frontend responsibilities are now separated as follows:
+
+```text
+database.php
+    ↓
+bootstrap JSON
+    ↓
+data-source.js
+    ↓
+app.js
+    ├── render latest measurement
+    └── render charts
+            ↓
+        charts.js
+            ↓
+        Chart.js
+```
+
+The `data-source.js` interface is asynchronous even though Alpha 4 still receives data through the PHP-generated bootstrap payload. This intentionally prepares the frontend for Alpha 5, where the implementation can move to `fetch()` and the public REST API without rewriting the presentation layer.
 
 The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
 
@@ -398,21 +438,42 @@ http://SERVER_IP:8080
 
 ## Dashboard Visualization
 
-`v2.0.0-alpha.3` replaces the Google Charts runtime with Chart.js bundled locally under:
+`v2.0.0-alpha.4` moves the dashboard presentation layer to the final Version 2 frontend stack:
 
 ```text
-/web_page/js/vendor/chart.umd.min.js
+HTML
+CSS
+Vanilla JavaScript
+Chart.js
 ```
 
-The current dashboard continues to use PHP-generated datasets and preserves the existing historical views:
+The current dashboard provides:
 
-- Last 24 hours.
-- Last week.
-- Last month.
+- Latest download and upload measurements.
+- Ping, download latency, and upload latency.
+- Link to the corresponding Speedtest.net result when available.
+- Last 24 hours, last week, and last month historical charts.
+- Responsive layout for desktop, tablet, and mobile widths.
+- Responsive Chart.js canvases.
+- Local Chart.js runtime with no CDN dependency.
+- Local favicon and browser title.
 
-Chart rendering no longer depends on Google Charts, a CDN, or WAN connectivity. This behavior was validated by disconnecting the WAN uplink while keeping the client and server connected through the local network and loading the dashboard through LAN.
+The frontend is split into dedicated modules:
 
-> **ToDo:** The frontend structure and responsive behavior will be refactored in a later milestone.
+```text
+js/
+├── app.js
+├── charts.js
+├── data-source.js
+└── vendor/
+    └── chart.umd.min.js
+```
+
+`data-source.js` already exposes an asynchronous data-loading interface. In Alpha 4 it reads the PHP-generated bootstrap payload; Alpha 5 will replace that implementation with REST API requests.
+
+PHP remains responsible for database access until its data responsibilities are replaced by FastAPI.
+
+> **ToDo:** Dynamic range selection, statistics, thresholds, incidents, and additional dashboard features will be introduced in later milestones.
 
 
 ## REST API
@@ -637,6 +698,25 @@ Alpha 3 introduces:
 - Local serving of frontend assets through Nginx.
 - Offline/LAN-only dashboard visualization without WAN access.
 - Chart scaling across the full available X-axis data range.
+
+
+### v2.0.0-alpha.4
+
+Fourth functional Version 2 development milestone.
+
+Alpha 4 introduces:
+
+- Presentation separated from PHP-generated markup.
+- Semantic HTML dashboard structure.
+- Responsive CSS using Grid and Flexbox.
+- Reusable Chart.js logic in `js/charts.js`.
+- Frontend presentation/controller logic in `js/app.js`.
+- Asynchronous data-source abstraction in `js/data-source.js`.
+- Responsive charts for desktop, tablet, and mobile layouts.
+- A local SVG favicon and browser title.
+- Frontend architecture prepared for REST API consumption in Alpha 5.
+
+PHP remains temporarily responsible for reading SQLite and producing the bootstrap dataset.
 
 
 ### v2.0.0

@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.4] - 2026-08-23](#v200-alpha4---2026-08-23)
 - [[v2.0.0-alpha.3] - 2026-08-21](#v200-alpha3---2026-08-21)
 - [[v2.0.0-alpha.2] - 2026-08-20](#v200-alpha2---2026-08-20)
 - [[v2.0.0-alpha.1] - 2026-08-20](#v200-alpha1---2026-08-20)
@@ -18,6 +19,54 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.4] - 2026-08-23
+
+Fourth functional development milestone toward Version 2.
+
+
+### Added
+
+- Added semantic HTML dashboard structure for the latest measurement and historical charts.
+- Added responsive CSS based on CSS Grid and Flexbox.
+- Added responsive Chart.js containers for desktop, tablet, and mobile layouts.
+- Added `web_page/js/app.js` for dashboard presentation and rendering.
+- Added `web_page/js/charts.js` for reusable Chart.js logic.
+- Added `web_page/js/data-source.js` as an asynchronous frontend data-source abstraction.
+- Added a local SVG favicon.
+- Added a browser page title for the dashboard.
+
+
+### Changed
+
+- Separated frontend presentation from PHP-generated markup.
+- Changed PHP to produce a single JSON-compatible bootstrap payload instead of rendering individual presentation values directly into the page.
+- Replaced the table-based latest-result layout with responsive metric cards.
+- Moved Chart.js configuration and helper functions out of `index.php`.
+- Made Chart.js rendering responsive while preserving the existing 24-hour, weekly, and monthly datasets.
+- Preserved local/offline frontend assets and the existing three-container runtime architecture.
+- Prepared the frontend data-loading contract for REST API consumption in Alpha 5.
+
+
+### Validation
+
+- Verified the latest download and upload values render correctly.
+- Verified ping, download latency, and upload latency render correctly.
+- Verified the Speedtest.net result link remains functional.
+- Verified 24-hour, weekly, and monthly charts render correctly.
+- Verified charts resize with the responsive dashboard layout.
+- Verified the dashboard remains usable across desktop and narrower viewport widths.
+- Verified the local Chart.js runtime continues to operate without WAN access.
+- Verified the favicon and browser title load locally.
+
+
+### Documentation
+
+- Updated the README with the Alpha 4 frontend architecture and module responsibilities.
+- Marked `v2.0.0-alpha.4` as completed in the Version 2 roadmap.
+- Updated the Alpha 9 packaging plan to install a pinned Ookla Speedtest CLI package from Ookla's Debian/Ubuntu repository.
+- Added an Alpha 9 validation step for Ookla CLI JSON compatibility before replacing the currently bundled executable.
 
 
 ## [v2.0.0-alpha.3] - 2026-08-21

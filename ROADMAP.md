@@ -69,7 +69,7 @@ flowchart LR
     A1["alpha.1 ✓<br/>3 containers<br/>APScheduler"]
     A2["alpha.2 ✓<br/>3 containers<br/>Persistent /config"]
     A3["alpha.3 ✓<br/>3 containers<br/>Chart.js"]
-    A4["alpha.4<br/>3 containers<br/>Frontend refactor"]
+    A4["alpha.4 ✓<br/>3 containers<br/>Frontend refactor"]
     A5["alpha.5<br/>2 containers<br/>FastAPI + REST API"]
     A6["alpha.6<br/>2 containers<br/>Database V2"]
     A7["alpha.7<br/>2 containers<br/>Collector refactor"]
@@ -239,6 +239,8 @@ PASSED
 
 ## v2.0.0-alpha.4 — Frontend refactor
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Move the presentation layer toward the final Version 2 frontend stack.
@@ -254,17 +256,24 @@ Chart.js
 ```
 
 
-### Planned work
+### Completed work
 
-- Separate presentation from PHP-generated markup.
-- Introduce reusable JavaScript chart logic.
-- Introduce responsive CSS.
-- Use CSS Grid and Flexbox.
-- Prepare asynchronous dataset loading.
-- Prepare the frontend for REST API consumption.
-- Preserve all existing visualization functionality.
+- Separated presentation from PHP-generated markup.
+- Replaced the table-based latest-result layout with semantic HTML.
+- Moved reusable Chart.js logic into `js/charts.js`.
+- Moved dashboard presentation/controller logic into `js/app.js`.
+- Added `js/data-source.js` as an asynchronous data-source abstraction.
+- Kept PHP responsible only for SQLite access and bootstrap data generation.
+- Introduced responsive CSS.
+- Used CSS Grid for primary metric cards.
+- Used Flexbox for header, latency metrics, and supporting layout.
+- Made Chart.js canvases responsive.
+- Preserved the existing latest-result, 24-hour, weekly, and monthly visualization functionality.
+- Preserved local/offline Chart.js behavior.
+- Added a local SVG favicon and browser title.
+- Prepared the frontend so Alpha 5 can replace the PHP bootstrap source with REST API `fetch()` calls without rewriting the presentation layer.
 
-PHP must not be removed until its data responsibilities have been replaced.
+PHP remains in place until its data responsibilities are replaced by FastAPI.
 
 
 ## v2.0.0-alpha.5 — FastAPI and REST API
@@ -547,7 +556,9 @@ Prepare the new architecture for a stable public release.
 ### Docker
 
 - Final Dockerfile.
-- Extract the bundled Ookla Speedtest CLI archive during the Docker image build so no manual pre-extraction is required.
+- Install Ookla Speedtest CLI from Ookla's Debian/Ubuntu package repository during the Docker image build instead of bundling a pre-extracted executable.
+- Pin the selected Ookla Speedtest CLI package version for reproducible builds.
+- Validate the pinned Ookla CLI JSON output against the collector parser before removing the currently bundled CLI artifact.
 - OCI image labels.
 - `/config` permissions.
 - Image size review.

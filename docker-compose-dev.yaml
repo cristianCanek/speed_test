@@ -1,4 +1,5 @@
 name: speed_test_app
+
 services:
   collector:
     build:
@@ -7,25 +8,16 @@ services:
     volumes:
       - C:/workspaces/speed_test/config:/config
     restart: unless-stopped
-
-  webserver:
+  web_app:
     build:
       context: .
-      dockerfile: dockerfiles/nginx.dockerfile
+      dockerfile: dockerfiles/app.dockerfile
     ports:
       - "8000:80"
     depends_on:
-      - phpserver
-    volumes:
-      # Nginx needs the same frontend files in development so it can serve
-      # local static assets such as Chart.js.
-      - C:/workspaces/speed_test/web_page:/app/public:ro
-
-  phpserver:
-    build:
-      context: .
-      dockerfile: dockerfiles/php.dockerfile
+      - collector
     volumes:
       - C:/workspaces/speed_test/config:/config
-      # Comment this line for production, keep it as it is for development
-      - C:/workspaces/speed_test/web_page:/app/public
+      # Keep frontend files live-mounted during development.
+      - C:/workspaces/speed_test/web_page:/app/static:ro
+    restart: unless-stopped

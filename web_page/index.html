@@ -1,5 +1,3 @@
-<?php require "database.php"; ?>
-
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -9,25 +7,13 @@
         <title>speed_test</title>
 
         <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-
         <link rel="stylesheet" type="text/css" href="stylesheet.css">
 
-        <!--
-            Alpha 4 keeps PHP only as the temporary data source.
-            The presentation layer is now HTML + CSS + Vanilla JavaScript.
-        -->
-        <script type="text/javascript">
-            window.speedTestBootstrap = <?php echo $bootstrap_data_json; ?>;
-        </script>
-
-
-        <!-- Chart.js is bundled locally so the dashboard remains functional without WAN access. -->
-        <script type="text/javascript" src="js/vendor/chart.umd.min.js"></script>
+        <!-- Chart.js is bundled locally so the dashboard works without WAN access. -->
+        <script type="text/javascript" src="js/vendor/chart.umd.min.js" defer></script>
 
         <!--
-            The data-source abstraction is asynchronous on purpose.
-            Alpha 5 can replace the bootstrap implementation with fetch()
-            against the REST API without rewriting the presentation layer.
+            Alpha 5 consumes the same public REST API exposed to external clients.
         -->
         <script type="text/javascript" src="js/data-source.js" defer></script>
         <script type="text/javascript" src="js/charts.js" defer></script>
@@ -42,7 +28,7 @@
                     <h1>speed_test</h1>
                 </div>
 
-                <span class="status-badge" id="dashboard-status">Local dashboard</span>
+                <span class="status-badge" id="dashboard-status">REST API</span>
             </header>
 
             <section class="panel latest-panel" aria-labelledby="latest-title">

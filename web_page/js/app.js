@@ -77,7 +77,7 @@
         }
 
         if ( status ) {
-            status.textContent = "Dashboard error";
+            status.textContent = "API error";
             status.classList.add( "status-badge--error" );
         }
     }
@@ -89,10 +89,12 @@
 
             renderLatestResult( data.last );
             renderCharts( data.ranges || {} );
+
+            setText( "dashboard-status", "REST API connected" );
         }
         catch ( error ) {
             console.error( error );
-            showError( "Unable to load dashboard data. Check the browser console for details." );
+            showError( "Unable to load dashboard data from the REST API. Check the browser console for details." );
         }
     }
 

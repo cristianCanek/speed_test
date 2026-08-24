@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.5] - 2026-08-23](#v200-alpha5---2026-08-23)
 - [[v2.0.0-alpha.4] - 2026-08-23](#v200-alpha4---2026-08-23)
 - [[v2.0.0-alpha.3] - 2026-08-21](#v200-alpha3---2026-08-21)
 - [[v2.0.0-alpha.2] - 2026-08-20](#v200-alpha2---2026-08-20)
@@ -19,6 +20,71 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.5] - 2026-08-23
+
+Fifth functional development milestone toward Version 2.
+
+
+### Added
+
+- Added FastAPI as the Version 2 application backend.
+- Added Uvicorn as the ASGI server.
+- Added public API versioning under `/api/v1`.
+- Added `/health` for application/database health.
+- Added `/api/v1/status` for scheduler and latest-result information.
+- Added `/api/v1/results` with dynamic hour/day/all ranges.
+- Added `/api/v1/statistics` with average, median, minimum, and maximum statistics.
+- Added `/api/v1/config` for public non-sensitive configuration.
+- Added the reserved `POST /api/v1/tests/run` endpoint.
+- Added a dedicated read-only SQLite query layer for the application backend.
+- Added interactive OpenAPI/Swagger documentation at `/docs`.
+- Added OpenAPI schema generation at `/openapi.json`.
+- Added a dedicated FastAPI application Docker image.
+
+
+### Changed
+
+- Changed the frontend data source from the PHP bootstrap payload to public REST API `fetch()` requests.
+- Changed the frontend entry point from `index.php` to static `index.html`.
+- Changed static frontend serving from Nginx to FastAPI/Starlette.
+- Changed the active runtime architecture from three containers to two.
+- Changed the application container to expose Uvicorn internally while Docker Compose maps it to host port `8000`.
+- Preserved the collector as a separate persistent container for scheduled execution.
+- Preserved the existing Version 1-compatible SQLite schema during this milestone.
+
+
+### Removed
+
+- Removed PHP from the active runtime after its database-read responsibilities were replaced.
+- Removed Nginx from the active runtime after FastAPI took over static frontend serving.
+- Removed the frontend's dependency on PHP-generated markup/data bootstrap.
+
+
+### Validation
+
+- Verified exactly two active containers: collector and application.
+- Verified the dashboard loads through FastAPI and consumes the public REST API.
+- Verified `/health` returns HTTP `200` with database status.
+- Verified `/api/v1/status`.
+- Verified `/api/v1/results?range=24h`.
+- Verified `/api/v1/results?range=7d`.
+- Verified dynamic ranges including `3h`, `14d`, and `all`.
+- Verified the full historical dataset can be returned through `range=all`.
+- Verified `/api/v1/statistics?range=24h`.
+- Verified `/api/v1/config`.
+- Verified invalid and excessive ranges return HTTP `400`.
+- Verified interactive API documentation at `/docs`.
+- Verified `POST /api/v1/tests/run` returns the expected HTTP `501` placeholder response.
+
+
+### Documentation
+
+- Updated the README with the Alpha 5 FastAPI/REST architecture and endpoint reference.
+- Marked `v2.0.0-alpha.5` as completed in the Version 2 roadmap.
+- Documented that `/docs` is the Swagger/OpenAPI UI path and that the manual-test route is a `POST` operation.
+- Kept the Alpha 9 plan to install and pin Ookla Speedtest CLI from Ookla's Debian/Ubuntu package repository and validate JSON compatibility before replacing the current CLI.
 
 
 ## [v2.0.0-alpha.4] - 2026-08-23

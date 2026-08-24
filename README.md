@@ -51,6 +51,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
    - [v2.0.0-alpha.2](#v200-alpha2)
    - [v2.0.0-alpha.3](#v200-alpha3)
    - [v2.0.0-alpha.4](#v200-alpha4)
+   - [v2.0.0-alpha.5](#v200-alpha5)
    - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -79,7 +80,7 @@ Current functionality includes:
 - Startup validation for scheduler settings.
 - Preservation of existing user-provided settings and historical SQLite data.
 - Local Chart.js visualization with no runtime CDN dependency.
-- 24-hour, weekly, and monthly charts rendered from the existing PHP-generated datasets.
+- 24-hour, weekly, and monthly charts loaded through the public REST API.
 - Dashboard charts available over LAN even when WAN access is unavailable.
 - Presentation layer separated into HTML, CSS, and Vanilla JavaScript.
 - Reusable Chart.js logic in dedicated frontend modules.
@@ -87,66 +88,81 @@ Current functionality includes:
 - Responsive Chart.js canvases for desktop, tablet, and mobile widths.
 - Asynchronous frontend data-source abstraction prepared for REST API consumption.
 - Local favicon and application title for a complete browser experience.
+- FastAPI + Uvicorn application backend.
+- Public versioned REST API under `/api/v1`.
+- Static frontend served directly by FastAPI.
+- Frontend data loaded through the same public REST API available to external integrations.
+- Dynamic historical ranges such as `3h`, `24h`, `7d`, `14d`, `30d`, and `all`.
+- Basic statistics endpoint for historical data.
+- Application/database health endpoint.
+- Interactive OpenAPI/Swagger documentation at `/docs`.
+- Two-container runtime architecture: collector + application.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.4`, keeps the three-container runtime architecture while refactoring the presentation layer toward the final Version 2 frontend stack.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.5`, introduces the FastAPI application backend, removes PHP/Nginx from the active runtime, and reduces the application from three containers to two.
 
-Current `v2.0.0-alpha.4` architecture:
+Current `v2.0.0-alpha.5` architecture:
 
 ```mermaid
 flowchart TB
+    Browser["Web Browser / External Client"]
+
+    subgraph ApplicationContainer["Application container"]
+        AppSettings["Settings loader + validation"]
+        Uvicorn["Uvicorn"]
+        FastAPI["FastAPI"]
+        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
+        API["REST API<br/>/api/v1"]
+        Database["Read-only Database Layer"]
+
+        Uvicorn --> FastAPI
+        FastAPI --> Frontend
+        FastAPI --> API
+        AppSettings --> FastAPI
+        Frontend --> API
+        API --> Database
+    end
+
+    subgraph CollectorContainer["Collector container"]
+        CollectorSettings["Settings loader + validation"]
+        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
+        Collector["Python Collector"]
+        Ookla["Ookla Speedtest CLI"]
+        DBInit["Database initialization"]
+
+        CollectorSettings --> Scheduler
+        Scheduler --> Collector
+        Collector --> Ookla
+    end
 
     subgraph PersistentState["Persistent application state"]
         Config["/config/settings.yaml"]
         SQLite[("/config/data/speedtest.sqlite3")]
     end
 
-    subgraph CollectorContainer["Collector container"]
-        Settings["Settings loader + validation"]
-        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
-        Collector["Python Collector"]
-        Ookla["Ookla Speedtest CLI"]
-        DBInit["Database initialization"]
+    Browser --> FastAPI
 
-        Settings --> Scheduler
-        Scheduler --> Collector
-        Collector --> Ookla
-    end
+    Config --> AppSettings
+    Config --> CollectorSettings
 
-    subgraph PHPContainer["PHP container"]
-        PHP["PHP Data Backend<br/>SQLite → bootstrap JSON"]
-    end
+    Database --> SQLite
 
-    subgraph NginxContainer["Nginx container"]
-        Nginx["Nginx<br/>Serves frontend + local assets"]
-        Frontend["HTML + CSS + Vanilla JavaScript"]
-        DataSource["data-source.js<br/>Async data abstraction"]
-        Charts["charts.js<br/>Reusable Chart.js logic"]
-        App["app.js<br/>Presentation controller"]
-        ChartJS["Local Chart.js"]
-
-        Nginx --> Frontend
-        Frontend --> DataSource
-        Frontend --> Charts
-        Frontend --> App
-        Charts --> ChartJS
-    end
-
-    Browser["Web Browser"]
-
-    Config --> Settings
-    DBInit --> SQLite
     Collector --> SQLite
-    SQLite --> PHP
-    PHP --> DataSource
-    Nginx --> Browser
+    DBInit --> SQLite
 ```
 
-Persistent application state:
+Application containers: **2**
+
+```text
+collector
+application
+```
+
+Persistent application state remains external to both containers:
 
 ```text
 /config/
@@ -172,45 +188,26 @@ Current internal collector layout:
     └── speedtest
 ```
 
-Current frontend layout:
+The frontend now follows the architectural rule established for Version 2:
 
 ```text
-/web_page/
-├── index.php
-├── database.php
-├── stylesheet.css
-├── assets/
-│   └── favicon.svg
-└── js/
-    ├── app.js
-    ├── charts.js
-    ├── data-source.js
-    └── vendor/
-        ├── chart.umd.min.js
-        └── README.md
+Frontend
+   │
+   ▼
+Public REST API
+   │
+   ▼
+Database layer
+   │
+   ▼
+SQLite
 ```
 
-Frontend responsibilities are now separated as follows:
+The built-in frontend and external integrations therefore consume the same public API contract.
 
-```text
-database.php
-    ↓
-bootstrap JSON
-    ↓
-data-source.js
-    ↓
-app.js
-    ├── render latest measurement
-    └── render charts
-            ↓
-        charts.js
-            ↓
-        Chart.js
-```
+The collector remains a separate persistent container in Alpha 5. It continues to own scheduled Speedtest execution and SQLite writes. The application container opens the same SQLite database read-only.
 
-The `data-source.js` interface is asynchronous even though Alpha 4 still receives data through the PHP-generated bootstrap payload. This intentionally prepares the frontend for Alpha 5, where the implementation can move to `fetch()` and the public REST API without rewriting the presentation layer.
-
-The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and a public REST API.
+The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and the public REST API.
 
 Target Version 2 architecture:
 
@@ -239,7 +236,7 @@ flowchart TB
         API --> Database
     end
 
-    Browser["Web Browser"]
+    Browser["Web Browser / External Client"]
 
     Browser --> FastAPI
     Database --> SQLite
@@ -264,10 +261,10 @@ The intended final installation experience is:
 docker compose up -d
 ```
 
-The application is expected to expose its web interface on port `8080`.
+The application exposes its web interface internally on port `80` and can be mapped to any desired host port (`8000` by default).
 
 ```text
-http://SERVER_IP:8080
+http://SERVER_IP:8000
 ```
 
 
@@ -409,7 +406,8 @@ Current layout:
 └── logs/
 ```
 
-The collector and PHP backend share the same persistent SQLite database at `/config/data/speedtest.sqlite3`.
+The collector and FastAPI application share the same persistent SQLite database at `/config/data/speedtest.sqlite3`.
+The collector writes measurements while the application accesses the database through a read-only query layer.
 
 > **ToDo:** Confirm final permissions and deployment examples before the stable Version 2 release.
 
@@ -418,89 +416,122 @@ The collector and PHP backend share the same persistent SQLite database at `/con
 
 The intended default application port is:
 
-| Port   | Purpose                    |
-| ------ | -------------------------- |
-| `8080` | Web dashboard and REST API |
+| Port | Purpose                    |
+| ---- | -------------------------- |
+| `80` | Web dashboard and REST API |
 
 > **ToDo:** Confirm final port configuration.
 
 
 ## Accessing the GUI
 
-The intended default URL is:
+The Alpha 5 development stack exposes the FastAPI application on:
 
 ```text
-http://SERVER_IP:8080
+http://SERVER_IP:8000
 ```
 
-> **ToDo:** Update this section when the Version 2 web interface becomes available.
+For local development:
+
+```text
+http://localhost:8000
+```
+
+FastAPI serves the static dashboard directly; Nginx and PHP are no longer part of the active Alpha 5 runtime.
 
 
 ## Dashboard Visualization
 
-`v2.0.0-alpha.4` moves the dashboard presentation layer to the final Version 2 frontend stack:
+The responsive dashboard introduced in Alpha 4 is preserved, but its data source has changed.
 
 ```text
-HTML
-CSS
-Vanilla JavaScript
-Chart.js
+Alpha 4:
+PHP bootstrap payload
+        ↓
+data-source.js
+
+Alpha 5:
+Public REST API
+        ↓
+fetch()
+        ↓
+data-source.js
 ```
 
-The current dashboard provides:
+The dashboard continues to provide:
 
 - Latest download and upload measurements.
 - Ping, download latency, and upload latency.
-- Link to the corresponding Speedtest.net result when available.
+- Speedtest.net result link when available.
 - Last 24 hours, last week, and last month historical charts.
 - Responsive layout for desktop, tablet, and mobile widths.
 - Responsive Chart.js canvases.
 - Local Chart.js runtime with no CDN dependency.
 - Local favicon and browser title.
 
-The frontend is split into dedicated modules:
-
-```text
-js/
-├── app.js
-├── charts.js
-├── data-source.js
-└── vendor/
-    └── chart.umd.min.js
-```
-
-`data-source.js` already exposes an asynchronous data-loading interface. In Alpha 4 it reads the PHP-generated bootstrap payload; Alpha 5 will replace that implementation with REST API requests.
-
-PHP remains responsible for database access until its data responsibilities are replaced by FastAPI.
-
-> **ToDo:** Dynamic range selection, statistics, thresholds, incidents, and additional dashboard features will be introduced in later milestones.
+The frontend now consumes the same public REST API available to external integrations.
 
 
 ## REST API
 
-> **ToDo:** The Version 2 REST API is not implemented yet.
+`v2.0.0-alpha.5` introduces the first public Version 2 REST API.
 
-The REST API will serve as the public integration interface used both by the built-in frontend and by external applications.
-
-The currently planned API namespace is:
+Base path:
 
 ```text
 /api/v1
 ```
 
-Planned endpoints include:
+Interactive OpenAPI/Swagger documentation:
 
 ```text
-GET  /api/v1/status
-GET  /api/v1/results
-GET  /api/v1/statistics
-GET  /api/v1/config
-GET  /health
-
-POST /api/v1/tests/run
+/docs
 ```
 
-> **ToDo:** Replace this planned interface with the final validated API documentation and usage examples.
+OpenAPI schema:
+
+```text
+/openapi.json
+```
+
+Current endpoints:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Application/database health |
+| `GET` | `/api/v1/status` | Current application, scheduler, and latest-result status |
+| `GET` | `/api/v1/results?range=24h` | Historical Speedtest results |
+| `GET` | `/api/v1/statistics?range=24h` | Basic statistics for a result range |
+| `GET` | `/api/v1/config` | Public non-sensitive configuration |
+| `POST` | `/api/v1/tests/run` | Reserved manual-test endpoint; returns `501` until Alpha 7 |
+
+Dynamic result/statistics ranges accept:
+
+```text
+<number>h
+<number>d
+all
+```
+
+Examples:
+
+```text
+3h
+24h
+7d
+14d
+30d
+365d
+all
+```
+
+Invalid ranges return HTTP `400` with a human-readable error.
+
+The current API reads SQLite through a dedicated read-only database layer. The frontend uses this same public API through `fetch()`; it does not access SQLite or private backend data paths directly.
+
+`POST /api/v1/tests/run` intentionally exists as a reserved API contract but is not implemented yet. Manual execution will be implemented in Alpha 7 after the collector has been refactored into reusable application code.
+
+> **Note:** `/docs` is the documentation URL. `/api/v1/docs` is not an API route. Likewise, opening `/api/v1/tests/run` directly in a browser performs a `GET`; the defined operation is `POST`.
 
 
 ## Persistent Data
@@ -717,6 +748,27 @@ Alpha 4 introduces:
 - Frontend architecture prepared for REST API consumption in Alpha 5.
 
 PHP remains temporarily responsible for reading SQLite and producing the bootstrap dataset.
+
+
+### v2.0.0-alpha.5
+
+Fifth functional Version 2 development milestone.
+
+Alpha 5 introduces:
+
+- FastAPI + Uvicorn as the Version 2 application backend.
+- Public API versioning under `/api/v1`.
+- Static frontend serving directly from FastAPI.
+- Frontend data loading through the public REST API.
+- Dynamic historical result ranges.
+- Basic historical statistics.
+- Application/database health endpoint.
+- Interactive OpenAPI/Swagger documentation at `/docs`.
+- Read-only application database query layer.
+- Removal of PHP and Nginx from the active runtime.
+- Reduction from three application containers to two.
+
+The manual Speedtest endpoint is reserved as `POST /api/v1/tests/run` and intentionally returns HTTP `501` until the collector refactor in Alpha 7.
 
 
 ### v2.0.0

@@ -70,7 +70,7 @@ flowchart LR
     A2["alpha.2 ✓<br/>3 containers<br/>Persistent /config"]
     A3["alpha.3 ✓<br/>3 containers<br/>Chart.js"]
     A4["alpha.4 ✓<br/>3 containers<br/>Frontend refactor"]
-    A5["alpha.5<br/>2 containers<br/>FastAPI + REST API"]
+    A5["alpha.5 ✓<br/>2 containers<br/>FastAPI + REST API"]
     A6["alpha.6<br/>2 containers<br/>Database V2"]
     A7["alpha.7<br/>2 containers<br/>Collector refactor"]
     A8["alpha.8<br/>1 container<br/>Unified architecture"]
@@ -278,6 +278,8 @@ PHP remains in place until its data responsibilities are replaced by FastAPI.
 
 ## v2.0.0-alpha.5 — FastAPI and REST API
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Introduce the Version 2 application backend and replace PHP/Nginx responsibilities where possible.
@@ -305,16 +307,25 @@ POST /api/v1/tests/run
 ```
 
 
-### Planned work
+### Completed work
 
-- Introduce FastAPI.
-- Introduce API versioning under `/api/v1`.
-- Serve the static frontend from FastAPI.
-- Make the frontend consume the public REST API.
-- Introduce dynamic dataset ranges.
-- Implement basic application health endpoint.
-- Remove PHP once all data responsibilities are replaced.
-- Remove Nginx once FastAPI serves the frontend directly.
+- Introduced FastAPI + Uvicorn as the Version 2 application backend.
+- Introduced API versioning under `/api/v1`.
+- Served the static frontend directly from FastAPI.
+- Made the built-in frontend consume the same public REST API available to external integrations.
+- Added a dedicated read-only SQLite query layer for the application backend.
+- Introduced dynamic dataset ranges using hours, days, or `all`.
+- Added basic statistics for dynamic result ranges.
+- Implemented `/health` for application/database health.
+- Implemented `/api/v1/status`.
+- Implemented `/api/v1/results`.
+- Implemented `/api/v1/statistics`.
+- Implemented `/api/v1/config`.
+- Reserved `POST /api/v1/tests/run`; it intentionally returns HTTP `501` until Alpha 7.
+- Exposed interactive OpenAPI/Swagger documentation at `/docs`.
+- Removed PHP after replacing its data responsibilities.
+- Removed Nginx after FastAPI took over static frontend serving.
+- Reduced the active runtime architecture from three containers to two.
 
 
 ### Architectural rule
@@ -333,6 +344,21 @@ Database layer
    ▼
 SQLite
 ```
+
+### Validation
+
+- Two active containers: collector + application.
+- Dashboard loads successfully through FastAPI on host port `8000`.
+- Frontend retrieves data through REST API `fetch()` calls.
+- `/health` returns HTTP `200` with database status.
+- `/api/v1/status` returns scheduler and latest-result information.
+- `/api/v1/results` validated with `24h`, `7d`, `3h`, `14d`, and `all`.
+- `/api/v1/statistics` returns basic statistics.
+- `/api/v1/config` exposes only public configuration.
+- Invalid and excessive ranges return HTTP `400`.
+- `/docs` renders the generated OpenAPI/Swagger interface.
+- `POST /api/v1/tests/run` returns the expected HTTP `501` placeholder response.
+
 
 
 ### Expected architecture
@@ -608,7 +634,7 @@ A new user must be able to:
 1. Create a directory.
 2. Create or copy `compose.yaml`.
 3. Run: `docker compose up -d`
-4. Open: `http://SERVER_IP:8080`
+4. Open: `http://SERVER_IP:8000`
 5. Have default configuration generated automatically.
 6. Have the SQLite database generated automatically.
 7. Begin collecting Speedtest measurements automatically.

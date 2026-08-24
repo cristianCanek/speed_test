@@ -52,7 +52,8 @@ def parse_range( value: str ):
 
     if match is None:
         raise RangeError(
-            "Range must use the format '<number>h', '<number>d', or 'all'."
+            "Invalid range. Use a positive integer followed by 'h' for hours "
+            "or 'd' for days, or use 'all'. Examples: 24h, 7d, 30d, all."
         )
 
     amount = int( match.group( 1 ) )

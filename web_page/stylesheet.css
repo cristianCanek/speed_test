@@ -85,6 +85,13 @@ a {
     background: var( --surface );
     color: var( --text-secondary );
     font-size: 0.82rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.status-badge:hover {
+    border-color: var( --accent );
+    color: var( --accent );
 }
 
 .status-badge--error {

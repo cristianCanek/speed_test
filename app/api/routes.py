@@ -48,18 +48,21 @@ def _parse_range_or_400( range_value ):
 
 # Helper function to calculate the next scheduled boundary for the Speedtest scheduler.
 def _next_schedule_boundary( interval_minutes, timezone_name ):
-    tz  = ZoneInfo( timezone_name )
-    now = datetime.now( tz )
+    local_timezone  = ZoneInfo( timezone_name )
+    now             = datetime.now( local_timezone )
 
-    minutes_from_hour = now.minute
-    next_minute = ( ( minutes_from_hour // interval_minutes ) + 1 ) * interval_minutes
+    next_minute = ( ( now.minute // interval_minutes ) + 1 ) * interval_minutes
 
     if next_minute >= 60:
-        boundary = now.replace(
-            minute=0,
-            second=0,
-            microsecond=0
-        ) + timedelta( hours=1 )
+        boundary = (
+            now.replace(
+                minute=0,
+                second=0,
+                microsecond=0
+            )
+            + timedelta( hours=1 )
+        )
+
     else:
         boundary = now.replace(
             minute=next_minute,
@@ -119,7 +122,7 @@ def api_status():
 
     return {
         "application": "running",
-        # The collector remains a separate container in Alpha 5, so FastAPI
+        # The collector currently runs in a separate container, so FastAPI
         # cannot truthfully report its live process state yet.
         "collector_status": "external",
         "scheduler": {

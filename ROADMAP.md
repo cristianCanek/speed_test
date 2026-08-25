@@ -71,7 +71,7 @@ flowchart LR
     A3["alpha.3 ✓<br/>3 containers<br/>Chart.js"]
     A4["alpha.4 ✓<br/>3 containers<br/>Frontend refactor"]
     A5["alpha.5 ✓<br/>2 containers<br/>FastAPI + REST API"]
-    A6["alpha.6<br/>2 containers<br/>Database V2"]
+    A6["alpha.6 ✓<br/>2 containers<br/>Database V2"]
     A7["alpha.7<br/>2 containers<br/>Collector refactor"]
     A8["alpha.8<br/>1 container<br/>Unified architecture"]
     A9["alpha.9<br/>1 container<br/>Hardening + UI"]
@@ -399,33 +399,56 @@ Application containers: 2
 
 ## v2.0.0-alpha.6 — Database V2
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Refactor the persistence model after the REST API has isolated the frontend from SQLite implementation details.
 
 
-### Planned work
+### Completed work
 
-- Define Version 2 schema.
-- Introduce `schema_version`.
-- Introduce database migrations.
-- Preserve historical Version 1 data.
-- Normalize column names.
-- Normalize timestamps.
-- Store timestamps consistently.
-- Add appropriate indexes.
-- Store failed Speedtest executions.
-- Store error information.
-- Distinguish successful, failed and missing measurements where appropriate.
-- Update collector inserts.
-- Update REST API queries.
-- Update statistics queries.
-- Validate migration using a copy of the historical Version 1 database.
+- Defined the Version 2 SQLite schema.
+- Introduced `schema_version`.
+- Introduced automatic database migrations.
+- Created new databases directly at schema version 2.
+- Added automatic Version 1 → Version 2 migration.
+- Preserved historical Version 1 measurements.
+- Preserved legacy Version 1 objects during Alpha 6 as a migration safety net.
+- Normalized column names and corrected legacy naming inconsistencies.
+- Added explicit units to measurement column names where appropriate.
+- Normalized measurement and database metadata timestamps to UTC.
+- Added indexes for timestamp, status/timestamp, and result-ID queries.
+- Added persistent `success`, `failed`, and `missing` execution states.
+- Added persistent error type, error message, and exit-code fields.
+- Updated collector inserts for the Version 2 schema.
+- Updated REST API queries for the Version 2 schema.
+- Updated statistics queries to report successful, failed, and missing execution counts.
+- Kept the public REST API response shape stable for the existing dashboard.
+- Returned the scheduler's next execution boundary using the configured IANA timezone.
+- Added a direct dashboard link to `/docs`, opening the API documentation in a new tab.
 
 
 ### Architectural objective
 
-Frontend changes should be minimal because database implementation remains hidden behind the REST API.
+Frontend changes remain minimal because database implementation details stay hidden behind the REST API.
+
+
+### Validation
+
+- Fresh deployment creates a schema-version-2 database automatically.
+- Fresh database initializes `schema_version` correctly.
+- Scheduled successful Speedtests are stored as `status = 'success'`.
+- Failed/invalid Speedtest output is stored as `status = 'failed'` with error information.
+- The schema supports `status = 'missing'` for identifiable missed measurements.
+- REST API health remains healthy against the Version 2 database.
+- `/api/v1/status` reads the Version 2 schema successfully.
+- `/api/v1/results` reads the Version 2 schema successfully.
+- Historical charts render from Version 2 data without frontend schema changes.
+- Migration was validated using a copy of the historical Version 1 production database.
+- Migrated historical-row count matched the Version 1 source-row count.
+- Existing historical charts remained available after migration.
+- The scheduler's next-run timestamp is returned in the timezone configured in `settings.yaml`.
 
 
 ## v2.0.0-alpha.7 — Collector refactor

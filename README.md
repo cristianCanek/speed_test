@@ -9,8 +9,6 @@
 
 Self-hosted Docker application for continuously monitoring Internet connection performance using Ookla Speedtest CLI, SQLite, and a local web dashboard.
 
-> **ToDo:** The screenshots below currently represent the Version 1 dashboard and will be replaced as the Version 2 interface is developed.
-
 | | |
 |---|---|
 | ![Latest result](docs/images/dashboard_01.png) | ![24-hour dashboard](docs/images/dashboard_02.png) |
@@ -52,6 +50,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
    - [v2.0.0-alpha.3](#v200-alpha3)
    - [v2.0.0-alpha.4](#v200-alpha4)
    - [v2.0.0-alpha.5](#v200-alpha5)
+   - [v2.0.0-alpha.6](#v200-alpha6)
    - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -97,15 +96,25 @@ Current functionality includes:
 - Application/database health endpoint.
 - Interactive OpenAPI/Swagger documentation at `/docs`.
 - Two-container runtime architecture: collector + application.
+- Version 2 SQLite schema with explicit schema versioning.
+- Automatic Version 1 → Version 2 database migration.
+- Preservation of historical Version 1 measurements during migration.
+- Normalized Version 2 column names and UTC timestamps.
+- Indexed Version 2 result storage.
+- Successful, failed, and missing execution states in persistent storage.
+- Persistent error type, error message, and exit-code fields for failed executions.
+- Statistics that distinguish successful, failed, and missing executions.
+- Scheduler next-run timestamp exposed using the timezone configured in `settings.yaml`.
+- Direct dashboard link to the interactive REST API documentation.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.5`, introduces the FastAPI application backend, removes PHP/Nginx from the active runtime, and reduces the application from three containers to two.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.6`, keeps the two-container runtime introduced in Alpha 5 while replacing the legacy persistence model with the Version 2 database schema and migration system.
 
-Current `v2.0.0-alpha.5` architecture:
+Current `v2.0.0-alpha.6` architecture:
 
 ```mermaid
 flowchart TB
@@ -132,7 +141,7 @@ flowchart TB
         Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
         Collector["Python Collector"]
         Ookla["Ookla Speedtest CLI"]
-        DBInit["Database initialization"]
+        DBInit["Database initialization + migrations"]
 
         CollectorSettings --> Scheduler
         Scheduler --> Collector
@@ -141,7 +150,7 @@ flowchart TB
 
     subgraph PersistentState["Persistent application state"]
         Config["/config/settings.yaml"]
-        SQLite[("/config/data/speedtest.sqlite3")]
+        SQLite[("/config/data/speedtest.sqlite3<br/>Schema V2")]
     end
 
     Browser --> FastAPI
@@ -149,17 +158,16 @@ flowchart TB
     Config --> AppSettings
     Config --> CollectorSettings
 
-    Database --> SQLite
-
-    Collector --> SQLite
     DBInit --> SQLite
+    Collector --> SQLite
+    Database --> SQLite
 ```
 
 Application containers: **2**
 
 ```text
 collector
-application
+web_app
 ```
 
 Persistent application state remains external to both containers:
@@ -170,6 +178,17 @@ Persistent application state remains external to both containers:
 ├── data/
 │   └── speedtest.sqlite3
 └── logs/
+```
+
+Current internal database layout:
+
+```text
+/app/database/
+├── database.py
+├── queries.py
+├── schema.sql
+└── migrations/
+    └── 001_v1_to_v2.sql
 ```
 
 Current internal collector layout:
@@ -188,7 +207,7 @@ Current internal collector layout:
     └── speedtest
 ```
 
-The frontend now follows the architectural rule established for Version 2:
+The frontend continues to follow the Version 2 architectural rule:
 
 ```text
 Frontend
@@ -203,9 +222,9 @@ Database layer
 SQLite
 ```
 
-The built-in frontend and external integrations therefore consume the same public API contract.
+The Version 2 database schema is therefore hidden behind the public REST API. Alpha 6 changes the persistence implementation without requiring corresponding frontend data-model changes.
 
-The collector remains a separate persistent container in Alpha 5. It continues to own scheduled Speedtest execution and SQLite writes. The application container opens the same SQLite database read-only.
+The collector owns database creation, schema migration, scheduled Speedtest execution, and database writes. The application container accesses the same SQLite database through a read-only query layer.
 
 The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and the public REST API.
 
@@ -270,15 +289,17 @@ http://SERVER_IP:8000
 
 ## Application Setup
 
-Version 2 development now initializes its persistent application state automatically.
+Version 2 development initializes and migrates persistent application state automatically.
 
-On first startup, the collector:
+On collector startup:
 
-1. Creates the `/config` directory structure when missing.
-2. Creates `/config/settings.yaml` from the packaged defaults when missing.
-3. Creates `/config/data/speedtest.sqlite3` using the current Version 1-compatible schema when missing.
-4. Preserves existing user-provided settings and database files.
-5. Validates scheduler settings before starting APScheduler.
+1. The `/config` directory structure is created when missing.
+2. `/config/settings.yaml` is created from packaged defaults when missing.
+3. If the database is missing, `/config/data/speedtest.sqlite3` is created directly using the Version 2 schema.
+4. If a supported Version 1 database is detected, its historical data is migrated automatically to the Version 2 schema.
+5. Existing user-provided settings and database files are preserved.
+6. Scheduler settings are validated before APScheduler starts.
+7. The database schema version is validated before scheduled collection begins.
 
 Current persistent layout:
 
@@ -290,7 +311,9 @@ Current persistent layout:
 └── logs/
 ```
 
-The `logs/` directory is reserved for future logging support. The collector does not write `collector.log` yet.
+The `logs/` directory is reserved for Alpha 7 collector logging.
+
+The Version 2 database includes a `schema_version` table so future schema migrations can be applied deterministically.
 
 
 ## Usage
@@ -471,10 +494,12 @@ The dashboard continues to provide:
 
 The frontend now consumes the same public REST API available to external integrations.
 
+The dashboard's REST API status badge links directly to `/docs` and opens the interactive API documentation in a new browser tab. Because the link is relative, it automatically uses the same host and externally mapped port as the dashboard.
+
 
 ## REST API
 
-`v2.0.0-alpha.5` introduces the first public Version 2 REST API.
+`v2.0.0-alpha.5` introduced the first public Version 2 REST API. Alpha 6 preserves that contract while moving the API queries to the Version 2 database schema.
 
 Base path:
 
@@ -527,7 +552,9 @@ all
 
 Invalid ranges return HTTP `400` with a human-readable error.
 
-The current API reads SQLite through a dedicated read-only database layer. The frontend uses this same public API through `fetch()`; it does not access SQLite or private backend data paths directly.
+The current API reads the Version 2 SQLite schema through a dedicated read-only database layer.
+
+`/api/v1/status` keeps stored measurement timestamps in UTC, while `scheduler.next_scheduled_boundary` is returned using the IANA timezone configured in `/config/settings.yaml`. This makes the next scheduled execution directly readable in the user's configured local timezone without changing the UTC storage policy. The frontend uses this same public API through `fetch()`; it does not access SQLite or private backend data paths directly.
 
 `POST /api/v1/tests/run` intentionally exists as a reserved API contract but is not implemented yet. Manual execution will be implemented in Alpha 7 after the collector has been refactored into reusable application code.
 
@@ -536,7 +563,7 @@ The current API reads SQLite through a dedicated read-only database layer. The f
 
 ## Persistent Data
 
-Version 2 keeps its current persistent application state under:
+Version 2 keeps its persistent application state under:
 
 ```text
 /config
@@ -549,9 +576,29 @@ Current persistent files include:
 /config/data/speedtest.sqlite3
 ```
 
-The `/config/logs/` directory is reserved for future application logs.
+The SQLite database is currently at schema version **2**.
 
-This allows configuration and historical data to remain accessible from the host for backup, monitoring, development, or external analysis.
+The primary Version 2 measurement table is:
+
+```text
+speedtest_runs
+```
+
+Each row represents an execution state rather than only a successful measurement:
+
+```text
+success
+failed
+missing
+```
+
+Successful rows contain Speedtest measurements. Failed rows can store error type, error message, and exit code. Missing rows represent expected executions for which no measurement was produced when the application can identify that condition.
+
+Measurement timestamps and database metadata timestamps are stored consistently in UTC.
+
+The `/config/logs/` directory is reserved for future application and collector logs.
+
+Keeping configuration and historical data under `/config` allows the complete persistent state to be backed up independently from container images.
 
 
 ## Backup and Restore
@@ -563,11 +610,35 @@ The intended design is for `/config` to contain everything required to preserve 
 
 ## Migration from Version 1
 
-Version 2 is intended to preserve existing historical Version 1 data whenever reasonably possible.
+Alpha 6 introduces the first automatic Version 1 → Version 2 database migration.
 
-> **ToDo:** Add the final `v1.0.0` → `v2.0.0` migration procedure after the Version 2 database schema and migration system are implemented.
+When the collector starts with an existing supported Version 1 database:
 
-During development, do not delete the original Version 1 SQLite database.
+```text
+Version 1 database
+        │
+        ▼
+Legacy schema detected
+        │
+        ▼
+001_v1_to_v2.sql
+        │
+        ▼
+Version 2 schema
+        │
+        ├── schema_version
+        └── speedtest_runs
+```
+
+Historical Version 1 rows are copied into `speedtest_runs` as successful executions and retain their original Version 1 row identifier in `legacy_raw_result_id`.
+
+The legacy Version 1 tables/views are intentionally preserved during Alpha 6 as a migration safety net. All active Version 2 collector and REST API code uses the Version 2 schema after migration.
+
+Migration validation was performed using a copy of the historical production database and confirmed that the migrated Version 2 historical-row count matched the Version 1 source count.
+
+For development and migration testing, always use a backup or copy of important Version 1 data.
+
+> **ToDo:** Add the final end-user migration and backup procedure before the stable `v2.0.0` release.
 
 
 ## Shell Access
@@ -771,6 +842,31 @@ Alpha 5 introduces:
 The manual Speedtest endpoint is reserved as `POST /api/v1/tests/run` and intentionally returns HTTP `501` until the collector refactor in Alpha 7.
 
 
+### v2.0.0-alpha.6
+
+Sixth functional Version 2 development milestone.
+
+Alpha 6 introduces:
+
+- Version 2 SQLite schema.
+- Explicit `schema_version` tracking.
+- Automatic database creation directly at schema version 2.
+- Automatic Version 1 → Version 2 database migration.
+- Preservation of historical Version 1 measurements.
+- Normalized column names and explicit units.
+- Consistent UTC timestamp storage.
+- Indexes for timestamp/status/result queries.
+- Persistent `success`, `failed`, and `missing` execution states.
+- Persistent error information for failed executions.
+- Collector inserts updated for the Version 2 schema.
+- REST API and statistics queries updated for the Version 2 schema.
+- Statistics counts for successful, failed, and missing executions.
+- Scheduler next-run time presented using the configured IANA timezone.
+- Direct dashboard link to the Swagger/OpenAPI documentation.
+
+The frontend continues to consume the same `/api/v1` contract and requires no database-specific implementation knowledge.
+
+
 ### v2.0.0
 
 > **ToDo:** Currently under development.
@@ -813,6 +909,8 @@ Version 2 development also uses:
 - APScheduler for internal Speedtest scheduling.
 - PyYAML for YAML settings parsing.
 - Chart.js for local dashboard visualization.
+- FastAPI for the Version 2 web application and REST API.
+- Uvicorn as the ASGI server for FastAPI.
 
 Chart.js is bundled locally with the project so dashboard charts do not require CDN or WAN access at runtime.
 

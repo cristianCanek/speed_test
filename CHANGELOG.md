@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.6] - 2026-08-25](#v200-alpha6---2026-08-25)
 - [[v2.0.0-alpha.5] - 2026-08-23](#v200-alpha5---2026-08-23)
 - [[v2.0.0-alpha.4] - 2026-08-23](#v200-alpha4---2026-08-23)
 - [[v2.0.0-alpha.3] - 2026-08-21](#v200-alpha3---2026-08-21)
@@ -20,6 +21,70 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.6] - 2026-08-25
+
+Sixth functional development milestone toward Version 2.
+
+
+### Added
+
+- Added the Version 2 SQLite schema.
+- Added explicit database schema-version tracking through `schema_version`.
+- Added automatic Version 1 ? Version 2 migration through `001_v1_to_v2.sql`.
+- Added `speedtest_runs` as the Version 2 execution/measurement table.
+- Added normalized Version 2 column names and explicit measurement units.
+- Added indexes for timestamp, status/timestamp, and result-ID queries.
+- Added persistent `success`, `failed`, and `missing` execution states.
+- Added persistent error type, error message, and exit-code fields.
+- Added migration traceability through `legacy_raw_result_id`.
+- Added statistics counts for successful, failed, and missing executions.
+- Added a dashboard link to the interactive REST API documentation.
+
+
+### Changed
+
+- Changed fresh database initialization to create schema version 2 directly.
+- Changed collector inserts from the legacy `rawResults` schema to `speedtest_runs`.
+- Changed REST API database queries to use the Version 2 schema.
+- Changed statistics queries to operate on Version 2 execution states.
+- Changed timestamp persistence to a consistent UTC representation.
+- Changed scheduler status presentation so `next_scheduled_boundary` uses the IANA timezone configured in `settings.yaml`.
+- Kept stored measurement timestamps in UTC.
+- Kept the existing `/api/v1` response contract used by the dashboard.
+
+
+### Migration
+
+- Existing supported Version 1 databases are detected automatically.
+- Historical Version 1 measurements are copied into the Version 2 schema.
+- Migrated Version 1 measurements are represented as successful executions.
+- Original Version 1 row identifiers are preserved in `legacy_raw_result_id`.
+- Legacy Version 1 tables/views remain in place during Alpha 6 as a safety measure.
+
+
+### Validation
+
+- Verified creation of a new schema-version-2 database from an empty persistent-data directory.
+- Verified the initial `schema_version` record for a fresh database.
+- Verified successful scheduled measurements are stored in `speedtest_runs`.
+- Verified invalid Speedtest output is stored as a failed execution with error information.
+- Verified the REST API reads successful Version 2 measurements.
+- Verified `/health` remains healthy with the Version 2 database.
+- Verified the dashboard and historical charts render after the persistence-layer change.
+- Verified Version 1 ? Version 2 migration using a copy of the production database.
+- Verified the migrated historical-row count matches the Version 1 source-row count.
+- Verified the existing historical dataset remains queryable after migration.
+- Verified the next scheduler boundary is returned using the configured timezone.
+- Verified the REST API documentation link opens `/docs` in a separate browser tab.
+
+
+### Documentation
+
+- Updated the README with the Version 2 database model, migration behavior, and current Alpha 6 architecture.
+- Marked `v2.0.0-alpha.6` as completed in the roadmap.
+- Documented automatic Version 1 ? Version 2 migration and the preservation of legacy objects during Alpha 6.
 
 
 ## [v2.0.0-alpha.5] - 2026-08-23

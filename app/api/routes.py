@@ -9,10 +9,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi           import APIRouter, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
-from api.ranges       import RangeError, parse_range
-from config.settings  import load_settings
-from database.queries import DatabaseUnavailableError, database_is_available, get_latest_result, get_results, get_statistics
+from api.ranges          import RangeError, parse_range
+from collector.collector import SpeedtestCollector
+from config.settings     import load_settings
+from database.queries    import DatabaseUnavailableError, database_is_available, get_latest_result, get_results, get_statistics
 
 
 # ======================================================================================================================
@@ -21,6 +23,15 @@ from database.queries import DatabaseUnavailableError, database_is_available, ge
 
 # The API router is used to register all the public endpoints for the speed_test application.
 router = APIRouter()
+
+
+# ======================================================================================================================
+# Classes definition.
+# ======================================================================================================================
+
+class ManualTestRequest( BaseModel ):
+    save: bool = True
+    raw:  bool = False
 
 
 # ======================================================================================================================
@@ -122,8 +133,7 @@ def api_status():
 
     return {
         "application": "running",
-        # The collector currently runs in a separate container, so FastAPI
-        # cannot truthfully report its live process state yet.
+        # The scheduled collector still runs in a separate container in Alpha 7.
         "collector_status": "external",
         "scheduler": {
             "interval_minutes": interval_minutes,
@@ -209,25 +219,15 @@ def api_config():
     }
 
 
-# Endpoint for manually triggering a Speedtest execution. This endpoint is reserved
-# for the v1 API and will be implemented in v2.0.0-alpha.7 after the collector becomes
-# reusable application code.
+# Endpoint for manually triggering a Speedtest execution.
 @router.post(
     "/api/v1/tests/run",
     tags=["v1"],
-    summary="Run a manual Speedtest",
-    status_code=status.HTTP_501_NOT_IMPLEMENTED
+    summary="Run a manual Speedtest"
 )
-def api_run_test():
-    # Reserved now so the public API shape is visible from Alpha 5.
-    # Actual execution belongs to the collector refactor in Alpha 7. Calling
-    # docker exec or exposing the Docker socket here would create the wrong
-    # coupling between the application and collector containers.
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=(
-            "Manual Speedtest execution is reserved by the v1 API but will "
-            "be implemented in v2.0.0-alpha.7 after the collector becomes "
-            "reusable application code."
-        )
-    )
+def api_run_test( request: ManualTestRequest ):
+    collector = SpeedtestCollector()
+
+    outcome = collector.execute( save=request.save, source="api" )
+
+    return outcome.to_dict( include_raw=request.raw )

@@ -21,10 +21,6 @@ from config.settings import SettingsError, load_settings
 STATIC_DIR = Path( "/app/static" )
 
 
-# ======================================================================================================================
-# Application lifecycle.
-# ======================================================================================================================
-
 @asynccontextmanager
 async def lifespan( app: FastAPI ):
     # Validate the shared application settings before accepting requests.
@@ -45,7 +41,7 @@ async def lifespan( app: FastAPI ):
 app = FastAPI(
     title       = "speed_test API",
     description = "Public REST API for the speed_test Version 2 application.",
-    version     = "2.0.0-alpha.5",
+    version     = "2.0.0-alpha.7",
     lifespan    = lifespan
 )
 

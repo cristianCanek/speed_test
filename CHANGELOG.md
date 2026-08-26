@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.7] - 2026-08-25](#v200-alpha7---2026-08-25)
 - [[v2.0.0-alpha.6] - 2026-08-25](#v200-alpha6---2026-08-25)
 - [[v2.0.0-alpha.5] - 2026-08-23](#v200-alpha5---2026-08-23)
 - [[v2.0.0-alpha.4] - 2026-08-23](#v200-alpha4---2026-08-23)
@@ -21,6 +22,84 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.7] - 2026-08-25
+
+Seventh functional development milestone toward Version 2.
+
+
+### Added
+
+- Added reusable `SpeedtestCollector` orchestration.
+- Added dedicated Ookla CLI execution layer.
+- Added dedicated JSON parsing and validation layer.
+- Added typed collector/domain models for measurements and execution outcomes.
+- Added dedicated collector database repository.
+- Added collector command-line entry point through `python -m collector`.
+- Added manual Speedtest execution through `docker exec`.
+- Added `--save` for persistent manual executions.
+- Added `--raw-json` for raw Ookla JSON output.
+- Added timeout handling for Ookla CLI execution.
+- Added explicit handling for missing CLI executable and non-zero exit codes.
+- Added validation for empty, invalid, and malformed Ookla JSON output.
+- Added shared cross-container lock at `/config/data/speedtest.lock`.
+- Added persistent collector/runtime logging at `/config/logs/collector.log`.
+- Added shared logging configuration in `app/logging_config.py`.
+- Added structured logger hierarchy for `speed_test.collector`, `speed_test.scheduler`, and `speed_test.database`.
+- Added functional `POST /api/v1/tests/run` manual Speedtest execution.
+- Added REST request options for persistence and raw output.
+
+
+### Changed
+
+- Replaced the monolithic `app/collector/speedtest.py` implementation with a reusable collector package.
+- Changed scheduled execution to call the same `SpeedtestCollector` used by manual and REST-triggered tests.
+- Changed CLI execution from combined-output `check_output()` behavior to explicit stdout/stderr/exit-code handling.
+- Changed diagnostic console logging to stderr so stdout remains suitable for machine-readable command output.
+- Changed database startup/migration messages from unstructured `print()` output to shared component logging.
+- Changed scheduler lifecycle messages to use the `speed_test.scheduler` logger.
+- Changed collector execution messages to use the `speed_test.collector` logger.
+- Changed the lock file from a container-local temporary path to shared persistent state so both Alpha 7 containers coordinate execution.
+- Included the reusable collector package and Ookla CLI in the FastAPI application image to prepare the Alpha 8 single-container merge.
+
+
+### REST API
+
+- Implemented `POST /api/v1/tests/run`.
+- Added `save` request option to control persistence of both successful and failed manual executions.
+- Added `raw` request option to include the original Ookla stdout payload.
+- Kept scheduled and REST-triggered execution behavior behind the same collector implementation.
+
+
+### Validation
+
+- Verified scheduled Speedtests continue to execute and persist successfully.
+- Verified manual non-persistent execution through Docker exec.
+- Verified manual persistent execution through Docker exec.
+- Verified raw Ookla JSON output.
+- Verified combined persistent + raw execution.
+- Verified machine-readable stdout with diagnostic logging separated to stderr.
+- Verified REST `save=false, raw=false`.
+- Verified REST `save=true, raw=false`.
+- Verified REST `save=false, raw=true`.
+- Verified cross-container overlap protection and `missing / overlap` reporting.
+- Verified missing CLI handling through `failed / cli_not_found`.
+- Verified timeout handling through `failed / timeout`.
+- Verified timeout with `save=false` is not persisted.
+- Verified timeout with `save=true` is persisted as a failed execution.
+- Verified scheduled timeout failures are persisted.
+- Verified persistent logging contains scheduled, manual, and API execution events.
+- Verified component-level logging for database, scheduler, and collector messages.
+- Verified the existing Version 2 database migration and dashboard/API behavior remain operational.
+
+
+### Documentation
+
+- Updated the README with the Alpha 7 reusable collector architecture.
+- Documented manual collector execution and persistence/raw-output options.
+- Documented the shared lock and persistent logging behavior.
+- Marked `v2.0.0-alpha.7` as completed in the roadmap.
 
 
 ## [v2.0.0-alpha.6] - 2026-08-25

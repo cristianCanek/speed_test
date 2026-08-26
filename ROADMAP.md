@@ -72,7 +72,7 @@ flowchart LR
     A4["alpha.4 ✓<br/>3 containers<br/>Frontend refactor"]
     A5["alpha.5 ✓<br/>2 containers<br/>FastAPI + REST API"]
     A6["alpha.6 ✓<br/>2 containers<br/>Database V2"]
-    A7["alpha.7<br/>2 containers<br/>Collector refactor"]
+    A7["alpha.7 ✓<br/>2 containers<br/>Collector refactor"]
     A8["alpha.8<br/>1 container<br/>Unified architecture"]
     A9["alpha.9<br/>1 container<br/>Hardening + UI"]
     V2["v2.0.0<br/>Stable release"]
@@ -453,41 +453,90 @@ Frontend changes remain minimal because database implementation details stay hid
 
 ## v2.0.0-alpha.7 — Collector refactor
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Transform the existing collector into reusable application code ready to be integrated into the final container.
 
 
-### Planned work
+### Completed work
 
-Separate responsibilities for:
+Separated responsibilities for:
 
 ```text
 Ookla CLI execution
         │
         ▼
-Result parsing
+Result parsing + validation
         │
         ▼
 Domain model
         │
         ▼
+Collector orchestration
+        │
+        ▼
 Database repository
 ```
 
-- Refactor current collector code.
-- Writing /config/logs/collector.log
-- Add timeout handling.
-- Validate Ookla JSON output.
-- Handle exit codes.
-- Handle malformed output.
-- Record failed executions.
-- Add manual execution entry point.
-- Provide manual Speedtest execution from the running container through docker exec.
-- Support saved and non-persistent manual tests.
-- Support raw JSON output for manual tests.
-- Reuse the same collector from APScheduler and REST manual execution.
-- Prepare collector for integration with FastAPI lifecycle.
+- Replaced the monolithic collector implementation with a reusable collector package.
+- Renamed the collector orchestration module to `collector.py`.
+- Added dedicated modules for CLI execution, parsing, models, repository, scheduler, and command-line entry points.
+- Added `/config/logs/collector.log`.
+- Added shared structured logging through `app/logging_config.py`.
+- Added component logger names for collector, scheduler, and database messages.
+- Kept CLI result data on stdout and diagnostic logging on stderr.
+- Added configurable CLI timeout handling.
+- Added exit-code handling.
+- Added validation for empty, invalid, and malformed Ookla JSON output.
+- Added explicit failure outcomes including `timeout`, `cli_not_found`, and `speedtest_cli_error`.
+- Reused Database V2 failed/missing execution persistence.
+- Added manual execution through `python -m collector run`.
+- Added `--save` for persistent manual executions.
+- Added `--raw-json` for raw Ookla output.
+- Added support for combining `--save --raw-json`.
+- Implemented `POST /api/v1/tests/run`.
+- Added API request options for saved/non-persistent and normalized/raw execution output.
+- Reused the same `SpeedtestCollector` from APScheduler, Docker exec, and the REST API.
+- Moved the execution lock to shared persistent state at `/config/data/speedtest.lock`.
+- Validated cross-container overlap protection.
+- Included the reusable collector code and Ookla CLI in the application image in preparation for Alpha 8.
+
+
+### Validation
+
+- Scheduled Speedtests continue to execute and persist successfully.
+- Manual `docker exec` execution works without persistence.
+- Manual `docker exec --save` persists successful executions.
+- Manual `--raw-json` returns the raw Ookla JSON payload.
+- `--save --raw-json` persists the execution while returning raw output.
+- Redirected raw CLI output remains machine-readable because diagnostic logs use stderr.
+- REST `save=false, raw=false` returns a normalized non-persistent result.
+- REST `save=true, raw=false` persists a normalized result.
+- REST `save=false, raw=true` returns raw Ookla output without persistence.
+- Shared locking prevents simultaneous collector/API execution across the two containers and returns a `missing / overlap` outcome.
+- Missing Ookla CLI execution returns `failed / cli_not_found`.
+- Timeout execution returns `failed / timeout`.
+- REST timeout with `save=false` is not written to SQLite.
+- REST timeout with `save=true` is written to SQLite as a failed execution.
+- Scheduled timeout executions are written to SQLite as failed executions.
+- Persistent logging contains scheduled, manual, and API execution entries.
+- Logging distinguishes `speed_test.collector`, `speed_test.scheduler`, and `speed_test.database`.
+- Version 1 → Version 2 migration and existing dashboard/API behavior remain functional after the refactor.
+
+
+### Architectural result
+
+```text
+APScheduler ─┐
+             │
+docker exec ─┼──► SpeedtestCollector
+             │
+REST API ────┘
+```
+
+The collector is now reusable application code. Alpha 8 can integrate APScheduler into the FastAPI lifecycle and remove the standalone collector container without redesigning collector execution.
 
 
 ## v2.0.0-alpha.8 — Single-container architecture

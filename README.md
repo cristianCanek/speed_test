@@ -25,6 +25,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
 - [Usage](#usage)
   - [Docker Compose](#docker-compose)
   - [Docker CLI](#docker-cli)
+  - [Manual Speedtest Execution](#manual-speedtest-execution)
 - [Configuration](#configuration)
   - [Configuration File](#configuration-file)
   - [Environment Variables](#environment-variables)
@@ -51,6 +52,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
    - [v2.0.0-alpha.4](#v200-alpha4)
    - [v2.0.0-alpha.5](#v200-alpha5)
    - [v2.0.0-alpha.6](#v200-alpha6)
+   - [v2.0.0-alpha.7](#v200-alpha7)
    - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -85,7 +87,7 @@ Current functionality includes:
 - Reusable Chart.js logic in dedicated frontend modules.
 - Responsive dashboard layout using CSS Grid and Flexbox.
 - Responsive Chart.js canvases for desktop, tablet, and mobile widths.
-- Asynchronous frontend data-source abstraction prepared for REST API consumption.
+- Asynchronous frontend data loading through the public REST API.
 - Local favicon and application title for a complete browser experience.
 - FastAPI + Uvicorn application backend.
 - Public versioned REST API under `/api/v1`.
@@ -106,19 +108,58 @@ Current functionality includes:
 - Statistics that distinguish successful, failed, and missing executions.
 - Scheduler next-run timestamp exposed using the timezone configured in `settings.yaml`.
 - Direct dashboard link to the interactive REST API documentation.
+- Reusable collector architecture separated into CLI execution, parsing, domain model, orchestration, and database repository layers.
+- Shared collector implementation used by scheduled, CLI/manual, and REST-triggered Speedtests.
+- Manual Speedtest execution through `docker exec`.
+- Optional persistence for manual and REST-triggered Speedtests.
+- Raw Ookla JSON output for manual diagnostics.
+- Runtime timeout, exit-code, malformed-output, and missing-CLI handling.
+- Shared cross-container lock preventing overlapping scheduled/manual/API Speedtests.
+- Persistent collector logging at `/config/logs/collector.log`.
+- Structured component logging for `speed_test.collector`, `speed_test.scheduler`, and `speed_test.database`.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.6`, keeps the two-container runtime introduced in Alpha 5 while replacing the legacy persistence model with the Version 2 database schema and migration system.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.7`, keeps the two-container runtime while refactoring the collector into reusable application code shared by scheduled, CLI/manual, and REST-triggered executions.
 
-Current `v2.0.0-alpha.6` architecture:
+Current `v2.0.0-alpha.7` architecture:
 
 ```mermaid
 flowchart TB
-    Browser["Web Browser / External Client"]
+
+    subgraph SharedCollector["Shared collector design"]
+    direction TB
+        CliLayer["CLI execution"]
+        Parser["JSON parsing + validation"]
+        Domain["Domain model"]
+        Repository["Database repository"]
+
+        CliLayer --> Parser
+        Parser --> Domain
+        Domain --> Repository
+    end
+
+    subgraph CollectorContainer["Collector container"]
+        CollectorSettings["Settings loader + validation"]
+        DBInit["Database initialization + migrations"]
+        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
+        ScheduledCollector["Reusable SpeedtestCollector"]
+        CollectorOokla["Ookla Speedtest CLI"]
+
+        CollectorSettings --> Scheduler
+        Scheduler --> ScheduledCollector
+        ScheduledCollector --> CollectorOokla
+    end
+
+    subgraph PersistentState["Persistent application state"]
+        Config["/config/settings.yaml"]
+        SQLite[("/config/data/speedtest.sqlite3<br/>Schema V2")]
+        Lock["/config/data/speedtest.lock"]
+        Log["/config/logs/collector.log"]
+    end
 
     subgraph ApplicationContainer["Application container"]
         AppSettings["Settings loader + validation"]
@@ -126,32 +167,21 @@ flowchart TB
         FastAPI["FastAPI"]
         Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
         API["REST API<br/>/api/v1"]
-        Database["Read-only Database Layer"]
+        ReadDB["Read-only Database Layer"]
+        APICollector["Reusable SpeedtestCollector"]
+        AppOokla["Ookla Speedtest CLI"]
 
         Uvicorn --> FastAPI
         FastAPI --> Frontend
         FastAPI --> API
         AppSettings --> FastAPI
         Frontend --> API
-        API --> Database
+        API --> ReadDB
+        API --> APICollector
+        APICollector --> AppOokla
     end
 
-    subgraph CollectorContainer["Collector container"]
-        CollectorSettings["Settings loader + validation"]
-        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
-        Collector["Python Collector"]
-        Ookla["Ookla Speedtest CLI"]
-        DBInit["Database initialization + migrations"]
-
-        CollectorSettings --> Scheduler
-        Scheduler --> Collector
-        Collector --> Ookla
-    end
-
-    subgraph PersistentState["Persistent application state"]
-        Config["/config/settings.yaml"]
-        SQLite[("/config/data/speedtest.sqlite3<br/>Schema V2")]
-    end
+    Browser["Web Browser / External Client"]
 
     Browser --> FastAPI
 
@@ -159,8 +189,18 @@ flowchart TB
     Config --> CollectorSettings
 
     DBInit --> SQLite
-    Collector --> SQLite
-    Database --> SQLite
+    ScheduledCollector --> SQLite
+    APICollector --> SQLite
+    ReadDB --> SQLite
+
+    ScheduledCollector --> Lock
+    APICollector --> Lock
+
+    ScheduledCollector -. uses .-> SharedCollector
+    APICollector -. uses .-> SharedCollector
+
+    ScheduledCollector --> Log
+    APICollector --> Log
 ```
 
 Application containers: **2**
@@ -176,35 +216,39 @@ Persistent application state remains external to both containers:
 /config/
 ├── settings.yaml
 ├── data/
-│   └── speedtest.sqlite3
+│   ├── speedtest.sqlite3
+│   └── speedtest.lock
 └── logs/
+    └── collector.log
 ```
 
-Current internal database layout:
+The collector is now structured as reusable application code:
 
 ```text
-/app/database/
-├── database.py
-├── queries.py
-├── schema.sql
-└── migrations/
-    └── 001_v1_to_v2.sql
+/app/collector/
+├── __init__.py
+├── __main__.py
+├── cli.py
+├── collector.py
+├── command.py
+├── models.py
+├── parser.py
+├── repository.py
+└── scheduler.py
 ```
 
-Current internal collector layout:
+Shared application logging is configured separately:
 
 ```text
-/app/
-├── collector/
-│   └── speedtest.py
-├── config/
-│   ├── settings.py
-│   └── settings.default.yaml
-├── database/
-│   ├── database.py
-│   └── schema.sql
-└── bin/
-    └── speedtest
+/app/logging_config.py
+```
+
+Current logger hierarchy:
+
+```text
+speed_test.collector
+speed_test.scheduler
+speed_test.database
 ```
 
 The frontend continues to follow the Version 2 architectural rule:
@@ -222,9 +266,17 @@ Database layer
 SQLite
 ```
 
-The Version 2 database schema is therefore hidden behind the public REST API. Alpha 6 changes the persistence implementation without requiring corresponding frontend data-model changes.
+Alpha 7 additionally establishes a reusable execution path:
 
-The collector owns database creation, schema migration, scheduled Speedtest execution, and database writes. The application container accesses the same SQLite database through a read-only query layer.
+```text
+APScheduler ─┐
+             │
+docker exec ─┼──► SpeedtestCollector ─► Ookla CLI ─► parser/model ─► repository
+             │
+REST API ────┘
+```
+
+The two containers temporarily include the same reusable collector code and Ookla CLI so both the scheduler and REST API can execute Speedtests. This deliberate duplication prepares Alpha 8 to merge the scheduler and FastAPI application into one container without another collector rewrite.
 
 The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and the public REST API.
 
@@ -250,6 +302,7 @@ flowchart TB
         FastAPI --> API
         FastAPI --> Scheduler
         Scheduler --> Collector
+        API --> Collector
         Collector --> Ookla
         Collector --> Database
         API --> Database
@@ -307,11 +360,13 @@ Current persistent layout:
 /config/
 ├── settings.yaml
 ├── data/
-│   └── speedtest.sqlite3
+│   ├── speedtest.sqlite3
+│   └── speedtest.lock
 └── logs/
+    └── collector.log
 ```
 
-The `logs/` directory is reserved for Alpha 7 collector logging.
+Collector/runtime diagnostics are written to `/config/logs/collector.log`.
 
 The Version 2 database includes a `schema_version` table so future schema migrations can be applied deterministically.
 
@@ -339,6 +394,39 @@ The Version 2 database includes a `schema_version` table so future schema migrat
 ```
 
 Docker Compose will be the recommended deployment method.
+
+
+### Manual Speedtest Execution
+
+Alpha 7 provides a reusable collector command-line entry point in the running collector container.
+
+Run a manual Speedtest without storing it:
+
+```bash
+docker exec speed_test_app-collector-1 python -m collector run
+```
+
+Run and persist the execution:
+
+```bash
+docker exec speed_test_app-collector-1 python -m collector run --save
+```
+
+Print the raw Ookla JSON payload without persistence:
+
+```bash
+docker exec speed_test_app-collector-1 python -m collector run --raw-json
+```
+
+Persist the execution while printing the raw Ookla JSON payload:
+
+```bash
+docker exec speed_test_app-collector-1 python -m collector run --save --raw-json
+```
+
+CLI result data is written to `stdout`; diagnostic logging is written to `stderr` and `/config/logs/collector.log`. This allows raw output to be redirected cleanly to a file or another command.
+
+The `--save` flag controls persistence for the complete execution outcome. Successful or failed manual runs are stored only when `--save` is present.
 
 
 ## Configuration
@@ -425,8 +513,10 @@ Current layout:
 /config/
 ├── settings.yaml
 ├── data/
-│   └── speedtest.sqlite3
+│   ├── speedtest.sqlite3
+│   └── speedtest.lock
 └── logs/
+    └── collector.log
 ```
 
 The collector and FastAPI application share the same persistent SQLite database at `/config/data/speedtest.sqlite3`.
@@ -448,7 +538,7 @@ The intended default application port is:
 
 ## Accessing the GUI
 
-The Alpha 5 development stack exposes the FastAPI application on:
+The current Version 2 development stack exposes the FastAPI application on:
 
 ```text
 http://SERVER_IP:8000
@@ -460,7 +550,7 @@ For local development:
 http://localhost:8000
 ```
 
-FastAPI serves the static dashboard directly; Nginx and PHP are no longer part of the active Alpha 5 runtime.
+FastAPI serves the static dashboard directly; Nginx and PHP are no longer part of the active Version 2 runtime.
 
 
 ## Dashboard Visualization
@@ -499,7 +589,7 @@ The dashboard's REST API status badge links directly to `/docs` and opens the in
 
 ## REST API
 
-`v2.0.0-alpha.5` introduced the first public Version 2 REST API. Alpha 6 preserves that contract while moving the API queries to the Version 2 database schema.
+`v2.0.0-alpha.5` introduced the public Version 2 REST API, Alpha 6 moved its persistence queries to Database V2, and Alpha 7 activates manual Speedtest execution through the same reusable collector used by the scheduler.
 
 Base path:
 
@@ -521,14 +611,14 @@ OpenAPI schema:
 
 Current endpoints:
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Application/database health |
-| `GET` | `/api/v1/status` | Current application, scheduler, and latest-result status |
-| `GET` | `/api/v1/results?range=24h` | Historical Speedtest results |
-| `GET` | `/api/v1/statistics?range=24h` | Basic statistics for a result range |
-| `GET` | `/api/v1/config` | Public non-sensitive configuration |
-| `POST` | `/api/v1/tests/run` | Reserved manual-test endpoint; returns `501` until Alpha 7 |
+| Method | Endpoint                       | Purpose                                                         |
+| ------ | ------------------------------ | --------------------------------------------------------------- |
+| `GET`  | `/health`                      | Application/database health                                     |
+| `GET`  | `/api/v1/status`               | Current application, scheduler, and latest-result status        |
+| `GET`  | `/api/v1/results?range=24h`    | Historical Speedtest results                                    |
+| `GET`  | `/api/v1/statistics?range=24h` | Basic statistics for a result range                             |
+| `GET`  | `/api/v1/config`               | Public non-sensitive configuration                              |
+| `POST` | `/api/v1/tests/run`            | Run a manual Speedtest with optional persistence and raw output |
 
 Dynamic result/statistics ranges accept:
 
@@ -556,9 +646,31 @@ The current API reads the Version 2 SQLite schema through a dedicated read-only 
 
 `/api/v1/status` keeps stored measurement timestamps in UTC, while `scheduler.next_scheduled_boundary` is returned using the IANA timezone configured in `/config/settings.yaml`. This makes the next scheduled execution directly readable in the user's configured local timezone without changing the UTC storage policy. The frontend uses this same public API through `fetch()`; it does not access SQLite or private backend data paths directly.
 
-`POST /api/v1/tests/run` intentionally exists as a reserved API contract but is not implemented yet. Manual execution will be implemented in Alpha 7 after the collector has been refactored into reusable application code.
+`POST /api/v1/tests/run` accepts a JSON request body:
 
-> **Note:** `/docs` is the documentation URL. `/api/v1/docs` is not an API route. Likewise, opening `/api/v1/tests/run` directly in a browser performs a `GET`; the defined operation is `POST`.
+```json
+{
+  "save": true,
+  "raw": false
+}
+```
+
+`save` controls whether the execution outcome is written to `speedtest_runs`. It applies equally to successful and failed executions.
+
+`raw` includes the original Ookla CLI stdout payload in the API response while preserving the normalized result object.
+
+Examples:
+
+```json
+{ "save": false, "raw": false }
+{ "save": true,  "raw": false }
+{ "save": false, "raw": true  }
+{ "save": true,  "raw": true  }
+```
+
+Scheduled, CLI/manual, and REST-triggered executions all use the same `SpeedtestCollector` implementation and shared lock.
+
+> **Note:** `/docs` is the documentation URL. `/api/v1/docs` is not an API route. Opening `/api/v1/tests/run` directly in a browser performs a `GET`; the defined operation is `POST`.
 
 
 ## Persistent Data
@@ -569,11 +681,13 @@ Version 2 keeps its persistent application state under:
 /config
 ```
 
-Current persistent files include:
+Current persistent runtime state includes:
 
 ```text
 /config/settings.yaml
 /config/data/speedtest.sqlite3
+/config/data/speedtest.lock
+/config/logs/collector.log
 ```
 
 The SQLite database is currently at schema version **2**.
@@ -596,7 +710,9 @@ Successful rows contain Speedtest measurements. Failed rows can store error type
 
 Measurement timestamps and database metadata timestamps are stored consistently in UTC.
 
-The `/config/logs/` directory is reserved for future application and collector logs.
+`/config/data/speedtest.lock` is a persistent lock object used by `flock()` to coordinate executions across the collector and application containers. The file remaining on disk does not mean that a Speedtest is currently locked.
+
+`/config/logs/collector.log` contains persistent diagnostics from scheduled, manual, and REST-triggered collector executions as well as database/scheduler lifecycle messages. Current logger names include `speed_test.collector`, `speed_test.scheduler`, and `speed_test.database`.
 
 Keeping configuration and historical data under `/config` allows the complete persistent state to be backed up independently from container images.
 
@@ -865,6 +981,29 @@ Alpha 6 introduces:
 - Direct dashboard link to the Swagger/OpenAPI documentation.
 
 The frontend continues to consume the same `/api/v1` contract and requires no database-specific implementation knowledge.
+
+
+### v2.0.0-alpha.7
+
+Seventh functional Version 2 development milestone.
+
+Alpha 7 introduces:
+
+- Collector refactored into reusable application code.
+- Separation of Ookla CLI execution, output parsing/validation, domain model, orchestration, scheduler, and database repository responsibilities.
+- Shared `SpeedtestCollector` used by APScheduler, `docker exec`, and the REST API.
+- Manual Speedtest execution with optional persistence.
+- Raw Ookla JSON output for diagnostic/manual runs.
+- Timeout handling and non-zero exit-code handling.
+- Validation for empty, invalid, and malformed Ookla JSON output.
+- Explicit `cli_not_found`, `timeout`, `speedtest_cli_error`, parsing-error, and overlap outcomes.
+- Cross-container execution locking through `/config/data/speedtest.lock`.
+- Persistent structured logging at `/config/logs/collector.log`.
+- Shared component logger hierarchy for collector, scheduler, and database messages.
+- REST implementation of `POST /api/v1/tests/run`.
+- Collector code and Ookla CLI included in the application image in preparation for the Alpha 8 single-container merge.
+
+Alpha 7 preserves the two-container runtime intentionally. Alpha 8 will move APScheduler into the FastAPI lifecycle and remove the standalone collector container.
 
 
 ### v2.0.0

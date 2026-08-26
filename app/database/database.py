@@ -8,6 +8,8 @@ import sqlite3
 
 from pathlib import Path
 
+from logging_config import get_logger
+
 
 # ======================================================================================================================
 # Global declarations.
@@ -18,6 +20,8 @@ SCHEMA_FILE    = Path( "/app/database/schema.sql"       )
 MIGRATIONS_DIR = Path( "/app/database/migrations"       )
 
 CURRENT_SCHEMA_VERSION = 2
+
+logger = get_logger( "database" )
 
 
 # ======================================================================================================================
@@ -79,7 +83,7 @@ def _create_database():
         conn.executescript( schema )
         conn.commit()
 
-        print(
+        logger.info(
             f"Database created at {DATABASE_FILE} "
             f"with schema version {CURRENT_SCHEMA_VERSION}."
         )
@@ -146,15 +150,16 @@ def ensure_database():
             )
 
         while version < CURRENT_SCHEMA_VERSION:
-            print(
-                f"Migrating database schema from version {version} "
-                f"to version {version + 1}."
+            logger.info(
+                "Migrating database schema from version %s to version %s.",
+                version,
+                version + 1
             )
 
             _apply_migration( conn, version )
             version = get_schema_version( conn )
 
-        print( f"Database schema version: {version}." )
+        logger.info( "Database schema version: %s.", version )
 
     finally:
         conn.close()

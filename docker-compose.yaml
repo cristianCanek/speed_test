@@ -1,20 +1,15 @@
 name: speed_test_app
+
 services:
-  collector:
-    build:
-      context: .
-      dockerfile: dockerfiles/python.dockerfile
-    volumes:
-      - ./config:/config
-    restart: unless-stopped
-  web_app:
+  app:
     build:
       context: .
       dockerfile: dockerfiles/app.dockerfile
+
     ports:
       - "8000:80"
+
     volumes:
       - ./config:/config
-    depends_on:
-      - collector
+
     restart: unless-stopped

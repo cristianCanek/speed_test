@@ -1,23 +1,18 @@
 name: speed_test_app
 
 services:
-  collector:
-    build:
-      context: .
-      dockerfile: dockerfiles/python.dockerfile
-    volumes:
-      - C:/workspaces/speed_test/config:/config
-    restart: unless-stopped
-  web_app:
+  app:
     build:
       context: .
       dockerfile: dockerfiles/app.dockerfile
+
     ports:
       - "8000:80"
-    depends_on:
-      - collector
+
     volumes:
       - C:/workspaces/speed_test/config:/config
+
       # Keep frontend files live-mounted during development.
       - C:/workspaces/speed_test/web_page:/app/static:ro
+
     restart: unless-stopped

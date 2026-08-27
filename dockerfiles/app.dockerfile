@@ -4,8 +4,8 @@ WORKDIR /app
 
 RUN apk add --no-cache tzdata
 
-COPY ./requirements-app.txt .
-RUN pip install --no-cache-dir -r requirements-app.txt
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./app/main.py           .
 COPY ./app/logging_config.py ./logging_config.py
@@ -19,5 +19,7 @@ COPY ./apis/speedtest /app/bin/speedtest
 RUN chmod +x /app/bin/speedtest
 
 COPY ./web_page ./static
+
+STOPSIGNAL SIGINT
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]

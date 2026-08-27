@@ -1,2 +1,4 @@
 APScheduler==3.11.3
+FastAPI==0.141.1
 PyYAML==6.0.3
+Uvicorn==0.52.1

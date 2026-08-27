@@ -4,23 +4,18 @@
 # Imports.
 # ======================================================================================================================
 
-import sys
-
-from collector.command   import main as command_main
-from collector.scheduler import main as scheduler_main
+from collector.command import main as command_main
 
 
 # ======================================================================================================================
 # Functions definition.
 # ======================================================================================================================
 
-# Main entry point for the application.
+# The collector module now exposes only manual execution commands.
+#
+# Scheduled execution is owned by the FastAPI application lifecycle in Alpha 8,
+# which prevents accidentally starting a second scheduler inside the container.
 def main():
-    if len( sys.argv ) >= 2 and sys.argv[1] == "scheduler":
-        del sys.argv[1]
-        scheduler_main()
-        return
-
     raise SystemExit(
         command_main()
     )

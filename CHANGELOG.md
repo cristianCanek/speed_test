@@ -9,6 +9,7 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 
 ## Table of Contents
 
+- [[v2.0.0-alpha.8] - 2026-08-27](#v200-alpha8---2026-08-27)
 - [[v2.0.0-alpha.7] - 2026-08-25](#v200-alpha7---2026-08-25)
 - [[v2.0.0-alpha.6] - 2026-08-25](#v200-alpha6---2026-08-25)
 - [[v2.0.0-alpha.5] - 2026-08-23](#v200-alpha5---2026-08-23)
@@ -22,6 +23,68 @@ Development plans and upcoming milestones are documented separately in [ROADMAP.
 ## [Unreleased]
 
 No unreleased changes yet.
+
+
+## [v2.0.0-alpha.8] - 2026-08-27
+
+Eighth functional development milestone toward Version 2.
+
+
+### Added
+
+- Added APScheduler ownership to the FastAPI application lifecycle.
+- Added application-level startup/shutdown management for the scheduler.
+- Added real scheduler runtime state to `/health`.
+- Added scheduler status to `/api/v1/status`.
+- Added `collector_status: integrated` to reflect the single-container architecture.
+- Added application-level structured logging through the existing `speed_test.*` logger hierarchy.
+
+
+### Changed
+
+- Changed the runtime architecture from two containers to one application container.
+- Changed APScheduler from a standalone `BlockingScheduler` process to an application-owned `BackgroundScheduler`.
+- Changed the scheduler lifecycle so FastAPI startup creates/starts it and FastAPI shutdown stops it.
+- Changed `/api/v1/status` to expose the actual APScheduler `next_run_time` instead of independently calculating the next boundary.
+- Changed Docker Compose to define one `app` service.
+- Changed the development Compose stack to one application service.
+- Unified application and collector Python dependencies into one `requirements.txt`.
+- Consolidated runtime packaging into `dockerfiles/app.dockerfile`.
+- Kept scheduled, Docker-exec, and REST-triggered execution behind the same reusable `SpeedtestCollector`.
+- Kept `/config` as the only persistent volume.
+
+
+### Removed
+
+- Removed the standalone collector container.
+- Removed the collector-specific `dockerfiles/python.dockerfile`.
+- Removed the separate `requirements-app.txt`.
+- Removed the standalone `python -m collector scheduler` runtime path so only the FastAPI lifecycle owns APScheduler.
+
+
+### Validation
+
+- Verified Docker Compose starts exactly one application container.
+- Verified the container exposes only the web application port (`8000:80` in the current Compose example).
+- Verified Uvicorn/FastAPI starts successfully as the foreground container process.
+- Verified Version 1 ? Version 2 database migration still runs during startup.
+- Verified APScheduler starts during FastAPI application startup.
+- Verified `/health` returns `status: healthy`, `database: ok`, and `scheduler: running`.
+- Verified `/api/v1/status` returns `collector_status: integrated`, live scheduler status, configured timezone, and next scheduled execution.
+- Verified an automatic scheduled Speedtest executes and persists successfully from the single container.
+- Verified manual `docker exec` execution without persistence.
+- Verified manual `docker exec --save` execution with persistence.
+- Verified Swagger/OpenAPI manual execution with `save=true` and `raw=true`.
+- Verified REST manual execution persists successfully.
+- Verified dashboard historical queries remain functional after the container merge.
+- Verified scheduled/manual/API execution logging remains available through the common persistent log.
+
+
+### Documentation
+
+- Updated the README to describe the current single-container architecture.
+- Marked `v2.0.0-alpha.8` as completed in the roadmap.
+- Expanded Alpha 9 planning with Settings UI/runtime reconfiguration, repository cleanup, frontend relocation, and lock-file location review.
 
 
 ## [v2.0.0-alpha.7] - 2026-08-25

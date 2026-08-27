@@ -73,7 +73,7 @@ flowchart LR
     A5["alpha.5 ✓<br/>2 containers<br/>FastAPI + REST API"]
     A6["alpha.6 ✓<br/>2 containers<br/>Database V2"]
     A7["alpha.7 ✓<br/>2 containers<br/>Collector refactor"]
-    A8["alpha.8<br/>1 container<br/>Unified architecture"]
+    A8["alpha.8 ✓<br/>1 container<br/>Unified architecture"]
     A9["alpha.9<br/>1 container<br/>Hardening + UI"]
     V2["v2.0.0<br/>Stable release"]
 
@@ -541,59 +541,118 @@ The collector is now reusable application code. Alpha 8 can integrate APSchedule
 
 ## v2.0.0-alpha.8 — Single-container architecture
 
+**Status:** ✅ Completed
+
 ### Goal
 
 Merge the application and collector into the final Version 2 runtime architecture.
 
 
-### Planned work
+### Completed work
 
-- Integrate APScheduler with application lifecycle.
-- Integrate collector into the application container.
-- Remove the standalone collector container.
-- Use a common configuration layer.
-- Use a common database layer.
-- Expose only the web application port.
-- Retain `/config` as the only persistent volume.
+- Integrated APScheduler with the FastAPI application lifecycle.
+- Replaced the standalone blocking scheduler process with an application-owned `BackgroundScheduler`.
+- Integrated the reusable collector into the application container.
+- Removed the standalone collector container.
+- Removed the collector-specific Dockerfile.
+- Unified runtime Python dependencies into one `requirements.txt`.
+- Unified configuration access under the application lifecycle.
+- Reused the common Version 2 database layer and repository.
+- Exposed only the web application port.
+- Retained `/config` as the only persistent volume.
+- Preserved manual `docker exec` collector execution from the application container.
+- Preserved REST-triggered manual Speedtests.
+- Preserved scheduled Speedtests, overlap protection, persistent logging, and Database V2 migration behavior.
+- Exposed actual APScheduler runtime state through `/health`.
+- Changed `/api/v1/status` to report `collector_status: integrated`.
+- Changed `/api/v1/status` to expose the actual APScheduler next-run timestamp rather than independently calculating it.
 
 
-### Target architecture
+### Current architecture
 
 ```mermaid
 flowchart TB
-    Browser["Web Browser"]
-    External["External Clients<br/>Home Telemetry / Scripts / Integrations"]
+    Browser["Web Browser / External Client"]
 
-    subgraph Container["speed_test container"]
+    subgraph Container["speed_test application container"]
+        direction TB
+
+        Uvicorn["Uvicorn"]
         FastAPI["FastAPI"]
-        Frontend["Static Frontend"]
+        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
         API["REST API<br/>/api/v1"]
-        Scheduler["APScheduler"]
-        Collector["Speedtest Collector"]
+        Scheduler["APScheduler<br/>FastAPI lifecycle"]
+        Collector["Reusable SpeedtestCollector"]
         Ookla["Ookla Speedtest CLI"]
-        Database["Database Layer"]
+        ReadDB["Read-only Database Layer"]
+        Repository["Collector Database Repository"]
 
+        Uvicorn --> FastAPI
         FastAPI --> Frontend
         FastAPI --> API
         FastAPI --> Scheduler
+
+        Frontend --> API
         Scheduler --> Collector
+        API --> Collector
+
         Collector --> Ookla
-        Collector --> Database
-        API --> Database
+        Collector --> Repository
+        API --> ReadDB
     end
 
-    SQLite[("SQLite")]
-    Config["settings.yaml"]
+    subgraph Persistent["Persistent application state"]
+        Config["/config/settings.yaml"]
+        SQLite[("/config/data/speedtest.sqlite3<br/>Schema V2")]
+        Lock["/config/data/speedtest.lock"]
+        Log["/config/logs/collector.log"]
+    end
 
     Browser --> FastAPI
-    External --> API
-
-    Database --> SQLite
 
     Config --> FastAPI
+    Repository --> SQLite
+    ReadDB --> SQLite
+    Collector --> Lock
+    Collector --> Log
 ```
 
-Application containers: 1
+Application containers: **1**
+
+
+### Validation
+
+- Verified Docker Compose starts exactly one application container.
+- Verified Uvicorn/FastAPI remains the foreground container process.
+- Verified database migration/initialization runs during application startup.
+- Verified APScheduler starts during FastAPI startup.
+- Verified `/health` reports `database: ok` and `scheduler: running`.
+- Verified `/api/v1/status` reports `collector_status: integrated`.
+- Verified `/api/v1/status` exposes the live scheduler state, configured timezone, and actual next scheduled execution.
+- Verified an automatic scheduled Speedtest executes and persists successfully.
+- Verified `docker exec ... python -m collector run` executes without persistence.
+- Verified `docker exec ... python -m collector run --save` persists successfully.
+- Verified REST manual execution remains functional from Swagger/OpenAPI.
+- Verified REST `save=true, raw=true` executes successfully and persists the result.
+- Verified dashboard/API historical ranges remain functional.
+- Verified all execution sources use the same database, collector implementation, lock, and persistent logging path.
+
+
+### Architectural result
+
+The intended Version 2 runtime architecture has now been reached:
+
+```text
+1 container
+1 application lifecycle
+1 scheduler
+1 reusable collector
+1 configuration layer
+1 database
+1 persistent /config volume
+```
+
+Alpha 9 can therefore focus on production hardening, configuration UX, packaging, quality, and release polish rather than further architectural restructuring.
 
 
 ## v2.0.0-alpha.9 — Production hardening and UI polish
@@ -605,6 +664,12 @@ Prepare the new architecture for a stable public release.
 
 ### Configuration
 
+- Add a dashboard Settings screen.
+- Add writable/validated configuration API support.
+- Persist configuration changes atomically to `/config/settings.yaml`.
+- Apply scheduler interval/timezone changes at runtime without requiring a container restart when practical.
+- Reschedule the APScheduler job after validated scheduler-setting changes.
+- Avoid adding a GUI restart button unless a setting truly requires process restart.
 - User-configurable Speedtest interval.
 - Expected download speed.
 - Expected upload speed.
@@ -614,6 +679,14 @@ Prepare the new architecture for a stable public release.
 - Timezone configuration.
 - Dashboard defaults.
 
+
+### Repository cleanup
+
+- Move the frontend from the repository-root `web_page/` directory into the application tree, preferably `app/static/`.
+- Simplify Dockerfile copy paths after the frontend move.
+- Evaluate moving `speedtest.lock` from persistent `/config/data/` to an ephemeral runtime path such as `/run/speed_test/` or `/tmp/`.
+- Keep the lock in `/config/data/` if the runtime-path change provides no meaningful practical benefit.
+- Remove remaining transitional/legacy files and naming left from the multi-container architecture.
 
 ### Observability
 
@@ -662,6 +735,7 @@ Prepare the new architecture for a stable public release.
 - Image size review.
 - Non-root execution if practical.
 - Final Compose example.
+- Remove avoidable runtime HTTP noise such as the `/favicon.ico` 404.
 
 
 ### Quality
@@ -712,7 +786,7 @@ A new user must be able to:
 7. Begin collecting Speedtest measurements automatically.
 8. Retain data across container recreation and updates.
 9. Use the dashboard without Internet access.
-10. Configure connection speed and thresholds through `/config`.
+10. Configure connection speed, thresholds, scheduler interval and timezone through the dashboard Settings UI while retaining `/config/settings.yaml` as persistent state.
 11. Query data through the public REST API.
 12. Execute a manual Speedtest through the API/UI.
 13. See failed connection tests represented correctly.

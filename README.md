@@ -53,6 +53,7 @@ Self-hosted Docker application for continuously monitoring Internet connection p
    - [v2.0.0-alpha.5](#v200-alpha5)
    - [v2.0.0-alpha.6](#v200-alpha6)
    - [v2.0.0-alpha.7](#v200-alpha7)
+   - [v2.0.0-alpha.8](#v200-alpha8)
    - [v2.0.0](#v200)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -74,7 +75,7 @@ Current functionality includes:
 - Internal Speedtest scheduling using APScheduler.
 - Clock-aligned measurements with configurable scheduler intervals.
 - Configurable scheduler timezone.
-- Persistent collector container.
+- Application-integrated collector and scheduler lifecycle.
 - Protection against overlapping Speedtest executions.
 - Single persistent application-state volume at `/config`.
 - Automatic creation of default settings and the SQLite database.
@@ -97,7 +98,7 @@ Current functionality includes:
 - Basic statistics endpoint for historical data.
 - Application/database health endpoint.
 - Interactive OpenAPI/Swagger documentation at `/docs`.
-- Two-container runtime architecture: collector + application.
+- Single-container runtime architecture combining FastAPI, APScheduler, collector, REST API, frontend, database layer, and Ookla CLI.
 - Version 2 SQLite schema with explicit schema versioning.
 - Automatic Version 1 → Version 2 database migration.
 - Preservation of historical Version 1 measurements during migration.
@@ -114,103 +115,91 @@ Current functionality includes:
 - Optional persistence for manual and REST-triggered Speedtests.
 - Raw Ookla JSON output for manual diagnostics.
 - Runtime timeout, exit-code, malformed-output, and missing-CLI handling.
-- Shared cross-container lock preventing overlapping scheduled/manual/API Speedtests.
+- Shared execution lock preventing overlapping scheduled/manual/API Speedtests.
 - Persistent collector logging at `/config/logs/collector.log`.
 - Structured component logging for `speed_test.collector`, `speed_test.scheduler`, and `speed_test.database`.
+- APScheduler lifecycle owned by FastAPI startup/shutdown.
+- Real scheduler state exposed through `/health` and `/api/v1/status`.
+- `collector_status: integrated` in the public status API.
+- One Docker service/container with only the web application port exposed.
+- Unified runtime dependency set and Docker image.
 
 > **ToDo:** Update this section as additional Version 2 functionality is implemented and validated.
 
 
 ## Architecture
 
-Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.7`, keeps the two-container runtime while refactoring the collector into reusable application code shared by scheduled, CLI/manual, and REST-triggered executions.
+Version 2 is being implemented incrementally. The current development milestone, `v2.0.0-alpha.8`, reaches the intended single-container runtime architecture.
 
-Current `v2.0.0-alpha.7` architecture:
+Current `v2.0.0-alpha.8` architecture:
 
 ```mermaid
 flowchart TB
+    Browser["Web Browser / External Client"]
 
-    subgraph SharedCollector["Shared collector design"]
-    direction TB
-        CliLayer["CLI execution"]
-        Parser["JSON parsing + validation"]
-        Domain["Domain model"]
-        Repository["Database repository"]
+    subgraph Container["speed_test application container"]
+        direction TB
 
-        CliLayer --> Parser
-        Parser --> Domain
-        Domain --> Repository
+        Uvicorn["Uvicorn"]
+        FastAPI["FastAPI"]
+        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
+        API["REST API<br/>/api/v1"]
+        Scheduler["APScheduler<br/>FastAPI lifecycle"]
+        Collector["Reusable SpeedtestCollector"]
+        Ookla["Ookla Speedtest CLI"]
+        ReadDB["Read-only Database Layer"]
+        Repository["Collector Database Repository"]
+
+        Uvicorn --> FastAPI
+        FastAPI --> Frontend
+        FastAPI --> API
+        FastAPI --> Scheduler
+
+        Frontend --> API
+        Scheduler --> Collector
+        API --> Collector
+
+        Collector --> Ookla
+        Collector --> Repository
+        API --> ReadDB
     end
 
-    subgraph CollectorContainer["Collector container"]
-        CollectorSettings["Settings loader + validation"]
-        DBInit["Database initialization + migrations"]
-        Scheduler["APScheduler<br/>Clock-aligned configurable interval"]
-        ScheduledCollector["Reusable SpeedtestCollector"]
-        CollectorOokla["Ookla Speedtest CLI"]
-
-        CollectorSettings --> Scheduler
-        Scheduler --> ScheduledCollector
-        ScheduledCollector --> CollectorOokla
-    end
-
-    subgraph PersistentState["Persistent application state"]
+    subgraph Persistent["Persistent application state"]
         Config["/config/settings.yaml"]
         SQLite[("/config/data/speedtest.sqlite3<br/>Schema V2")]
         Lock["/config/data/speedtest.lock"]
         Log["/config/logs/collector.log"]
     end
 
-    subgraph ApplicationContainer["Application container"]
-        AppSettings["Settings loader + validation"]
-        Uvicorn["Uvicorn"]
-        FastAPI["FastAPI"]
-        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
-        API["REST API<br/>/api/v1"]
-        ReadDB["Read-only Database Layer"]
-        APICollector["Reusable SpeedtestCollector"]
-        AppOokla["Ookla Speedtest CLI"]
-
-        Uvicorn --> FastAPI
-        FastAPI --> Frontend
-        FastAPI --> API
-        AppSettings --> FastAPI
-        Frontend --> API
-        API --> ReadDB
-        API --> APICollector
-        APICollector --> AppOokla
-    end
-
-    Browser["Web Browser / External Client"]
-
     Browser --> FastAPI
 
-    Config --> AppSettings
-    Config --> CollectorSettings
-
-    DBInit --> SQLite
-    ScheduledCollector --> SQLite
-    APICollector --> SQLite
+    Config --> FastAPI
+    Repository --> SQLite
     ReadDB --> SQLite
-
-    ScheduledCollector --> Lock
-    APICollector --> Lock
-
-    ScheduledCollector -. uses .-> SharedCollector
-    APICollector -. uses .-> SharedCollector
-
-    ScheduledCollector --> Log
-    APICollector --> Log
+    Collector --> Lock
+    Collector --> Log
 ```
 
-Application containers: **2**
+Application containers: **1**
 
 ```text
-collector
-web_app
+app
 ```
 
-Persistent application state remains external to both containers:
+The single application container now owns:
+
+```text
+Uvicorn
+FastAPI
+APScheduler
+SpeedtestCollector
+REST API
+Static frontend
+Database layer
+Ookla Speedtest CLI
+```
+
+Persistent application state remains outside the image under the single `/config` volume:
 
 ```text
 /config/
@@ -222,36 +211,36 @@ Persistent application state remains external to both containers:
     └── collector.log
 ```
 
-The collector is now structured as reusable application code:
+FastAPI's application lifecycle now owns startup and shutdown of the scheduler:
 
 ```text
-/app/collector/
-├── __init__.py
-├── __main__.py
-├── cli.py
-├── collector.py
-├── command.py
-├── models.py
-├── parser.py
-├── repository.py
-└── scheduler.py
+FastAPI startup
+      │
+      ├── Load + validate settings
+      ├── Create/migrate database
+      ├── Configure APScheduler
+      └── Start APScheduler
+               │
+               ▼
+        Application running
+               │
+               ▼
+FastAPI shutdown
+      │
+      └── Stop APScheduler
 ```
 
-Shared application logging is configured separately:
+The reusable collector execution path remains shared by all execution sources:
 
 ```text
-/app/logging_config.py
+APScheduler ─┐
+             │
+docker exec ─┼──► SpeedtestCollector ─► Ookla CLI ─► parser/model ─► repository
+             │
+REST API ────┘
 ```
 
-Current logger hierarchy:
-
-```text
-speed_test.collector
-speed_test.scheduler
-speed_test.database
-```
-
-The frontend continues to follow the Version 2 architectural rule:
+The frontend continues to consume the same public REST API available to external integrations:
 
 ```text
 Frontend
@@ -266,56 +255,9 @@ Database layer
 SQLite
 ```
 
-Alpha 7 additionally establishes a reusable execution path:
+Alpha 8 removes the temporary duplicate collector image/runtime introduced during the transition. There is now one configuration layer, one database, one scheduler, one collector implementation, and one application container.
 
-```text
-APScheduler ─┐
-             │
-docker exec ─┼──► SpeedtestCollector ─► Ookla CLI ─► parser/model ─► repository
-             │
-REST API ────┘
-```
-
-The two containers temporarily include the same reusable collector code and Ookla CLI so both the scheduler and REST API can execute Speedtests. This deliberate duplication prepares Alpha 8 to merge the scheduler and FastAPI application into one container without another collector rewrite.
-
-The final target for Version 2 remains a single self-contained Docker application combining data collection, persistence, scheduling, visualization, and the public REST API.
-
-Target Version 2 architecture:
-
-```mermaid
-flowchart TB
-    subgraph PersistentState["Persistent application state"]
-        Config["/config/settings.yaml"]
-        SQLite[("/config/data/speedtest.sqlite3")]
-    end
-
-    subgraph Container["speed_test container"]
-        FastAPI["FastAPI"]
-        Frontend["Static Frontend<br/>HTML + CSS + Vanilla JavaScript + Chart.js"]
-        API["REST API<br/>/api/v1"]
-        Scheduler["APScheduler"]
-        Collector["Speedtest Collector"]
-        Ookla["Ookla Speedtest CLI"]
-        Database["Database Layer"]
-
-        FastAPI --> Frontend
-        FastAPI --> API
-        FastAPI --> Scheduler
-        Scheduler --> Collector
-        API --> Collector
-        Collector --> Ookla
-        Collector --> Database
-        API --> Database
-    end
-
-    Browser["Web Browser / External Client"]
-
-    Browser --> FastAPI
-    Database --> SQLite
-    Config --> FastAPI
-```
-
-> **ToDo:** Update this section as each architectural milestone replaces additional Version 1 components.
+> **ToDo:** Alpha 9 will harden this architecture for the stable Version 2 release.
 
 
 ## Supported Architectures
@@ -325,7 +267,7 @@ flowchart TB
 
 ## Quick Start
 
-> **ToDo:** Pending section; final Version 2 quick-start instructions will be added once the runtime architecture is available.
+> **ToDo:** Final public-image quick-start instructions will be completed in Alpha 9. The runtime architecture is now stable at one application container.
 
 The intended final installation experience is:
 
@@ -673,6 +615,8 @@ Scheduled, CLI/manual, and REST-triggered executions all use the same `Speedtest
 > **Note:** `/docs` is the documentation URL. `/api/v1/docs` is not an API route. Opening `/api/v1/tests/run` directly in a browser performs a `GET`; the defined operation is `POST`.
 
 
+Alpha 8 integrates the collector and scheduler into the FastAPI application lifecycle. `/api/v1/status` now reports `collector_status: integrated` and returns the actual APScheduler state and next scheduled execution. `/health` validates both database availability and scheduler runtime state.
+
 ## Persistent Data
 
 Version 2 keeps its persistent application state under:
@@ -759,14 +703,24 @@ For development and migration testing, always use a backup or copy of important 
 
 ## Shell Access
 
-> **ToDo:** Pending section; add shell access and diagnostic commands once the final image name and runtime structure are established.
+The current Alpha 8 Compose service is named `app`.
 
-Expected usage:
+Open a shell inside the running container with:
 
 ```bash
-# TODO
-docker exec -it speed-test /bin/sh
+docker exec -it speed_test_app-app-1 /bin/sh
 ```
+
+Manual collector execution remains available from the same application container:
+
+```bash
+docker exec speed_test_app-app-1 python -m collector run
+docker exec speed_test_app-app-1 python -m collector run --save
+docker exec speed_test_app-app-1 python -m collector run --raw-json
+docker exec speed_test_app-app-1 python -m collector run --save --raw-json
+```
+
+The final published image/container naming conventions will be documented before `v2.0.0`.
 
 
 ## Docker Image Versioning and Tags
@@ -816,16 +770,25 @@ docker compose up -d
 
 ## Building Locally
 
-> **ToDo:** Pending section; update after the final Version 2 Dockerfile is available.
+Alpha 8 uses a single application Dockerfile:
 
-Expected development workflow:
+```text
+dockerfiles/app.dockerfile
+```
+
+Build and start the current development architecture with:
 
 ```bash
-git clone https://github.com/cristianCanek/speed_test.git
-cd speed_test
-
-docker build .
+docker compose -f docker-compose-dev.yaml up -d --build
 ```
+
+The normal Compose file also defines a single application service:
+
+```bash
+docker compose up -d --build
+```
+
+> **ToDo:** Replace local-build-oriented instructions with the final published Docker image workflow in Alpha 9.
 
 
 ## Development
@@ -1004,6 +967,31 @@ Alpha 7 introduces:
 - Collector code and Ookla CLI included in the application image in preparation for the Alpha 8 single-container merge.
 
 Alpha 7 preserves the two-container runtime intentionally. Alpha 8 will move APScheduler into the FastAPI lifecycle and remove the standalone collector container.
+
+
+### v2.0.0-alpha.8
+
+Eighth functional Version 2 development milestone.
+
+Alpha 8 introduces the final single-container runtime architecture:
+
+- FastAPI/Uvicorn as the single container entry point.
+- APScheduler integrated into the FastAPI application lifecycle.
+- `BackgroundScheduler` used so the scheduler can run alongside the web application.
+- Automatic scheduler startup and clean shutdown with the application lifecycle.
+- Reusable `SpeedtestCollector` integrated into the application container.
+- Removal of the standalone collector container.
+- Removal of the collector-specific Dockerfile.
+- Unified runtime dependencies in a single `requirements.txt`.
+- One configuration layer and one database layer.
+- One Docker service/container with only the web application port exposed.
+- `/config` retained as the only persistent volume.
+- Real APScheduler runtime state exposed through `/health`.
+- `collector_status: integrated` and live scheduler state exposed through `/api/v1/status`.
+- Scheduled, Docker-exec, and REST-triggered Speedtests all operating from the same application container.
+- Existing manual execution, persistence, raw-output, locking, migration, logging, dashboard, and REST functionality preserved.
+
+Alpha 8 completes the architectural convergence from the original Version 1 multi-container application to the intended Version 2 single-container runtime.
 
 
 ### v2.0.0
